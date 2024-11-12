@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Notes</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="notes-list-view">
+      <header>
+        <div class="header-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 3v12l3-3m-3 3l-3-3M5 5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5z"/>
+          </svg>
+          <h1>Quick Notes</h1>
+        </div>
+        <div class="toolbar-buttons">
+          <button id="new-note" class="toolbar-btn" aria-label="Create new note">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M12 5v14m-7-7h14" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+      
+      <div class="search-container">
+        <input type="search" id="search" placeholder="Search notes..." />
+      </div>
+
+      <div id="notes-list"></div>
+    </div>
+
+    <div id="editor" class="hidden">
+      <div class="editor-toolbar">
+        <div class="toolbar-left">
+          <button id="back-button" class="toolbar-btn" title="Back to notes">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M19 12H5m7 7l-7-7 7-7" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button id="delete-button" class="toolbar-btn" title="Delete note">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="toolbar-right">
+          <button id="undo-button" class="toolbar-btn" title="Undo" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M3 7v6h6M3 13c0-4.97 4.03-9 9-9 4.97 0 9 4.03 9 9s-4.03 9-9 9c-2.49 0-4.74-1.01-6.36-2.64" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button id="redo-button" class="toolbar-btn" title="Redo" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M21 7v6h-6m6 0c0-4.97-4.03-9-9-9-4.97 0-9 4.03-9 9s4.03 9 9 9c2.49 0 4.74-1.01 6.36-2.64" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button id="add-toggle" class="toolbar-btn" title="Add Section">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M12 5v14m-7-7h14" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="editor-content">
+        <input type="text" id="note-title" placeholder="Note title..." />
+        <div id="toggles-container"></div>
+      </div>
+    </div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
