@@ -1,7 +1,7 @@
 {
-  "name": "Quick Notes",
-  "short_name": "Quick Notes",
-  "description": "A powerful note-taking app",
+  "name": "Writer",
+  "short_name": "Writer",
+  "description": "A powerful writing app",
   "start_url": "./index.html",
   "scope": ".",
   "display": "standalone",
