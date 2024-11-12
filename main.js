@@ -62,20 +62,6 @@ function openEditor(note) {
   clearUndoRedoStacks();
 }
 
-function closeEditor() {
-  if (hasUnsavedChanges()) {
-    if (!confirm('You have unsaved changes. Are you sure you want to leave?')) {
-      return;
-    }
-  }
-  
-  editor.classList.add('hidden');
-  document.getElementById('notes-list-view').classList.remove('hidden');
-  currentNote = null;
-  renderNotesList();
-  clearUndoRedoStacks();
-}
-
 function deleteCurrentNote() {
   if (!currentNote) return;
   
