@@ -212,7 +212,7 @@ h1 {
 }
 
 #note-title {
-  font-size: 1.75rem;
+  font-size: 2rem;
   padding: 0.75rem;
   border: none;
   background: transparent;
@@ -340,12 +340,12 @@ h1 {
   }
   
   #note-title {
-    font-size: 1.5rem;
+    font-size: 1.7rem;
     padding: 1rem 0.75rem;
   }
   
   .toggle-content textarea {
-    font-size: 1.25rem;
+    font-size: 1.3rem;
     padding: 1.25rem;
   }
   
@@ -358,7 +358,7 @@ h1 {
   }
   
   .toggle-title {
-    font-size: 1.2rem;
+    font-size: 1.3rem;
   }
   
   .editor-toolbar {
