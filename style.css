@@ -40,6 +40,7 @@ body {
   position: fixed;
   width: 100%;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
 }
 
 #app {
