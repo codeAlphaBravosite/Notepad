@@ -229,7 +229,8 @@ h1 {
     font-size: 1rem;
     line-height: 1.5;
     font-family: inherit;
-    overflow: hidden;
+    overflow-y: hidden;
+    display: block;
 }
 
 .toggle-textarea:focus, .toggle-title:focus {
