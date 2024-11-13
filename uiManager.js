@@ -21,6 +21,7 @@ export class UIManager {
     this.currentNote = null;
     this.autoSaveTimeout = null;
     this.isComposing = false;
+    this.preventScroll = false;
     
     this.history = new HistoryManager(this.updateHistoryButtons.bind(this));
     this.debouncedUpdateToggleContent = debounce(this.updateToggleContent.bind(this), DEBOUNCE_DELAY);
@@ -57,6 +58,14 @@ export class UIManager {
     this.searchInput?.addEventListener('input', this.filterNotes.bind(this));
     this.noteTitle?.addEventListener('input', this.handleNoteChange.bind(this));
 
+    // Add scroll lock for title input
+    this.noteTitle?.addEventListener('focus', () => {
+      this.preventScroll = true;
+      requestAnimationFrame(() => {
+        this.preventScroll = false;
+      });
+    });
+
     window.addEventListener('storage', this.handleStorageChange.bind(this));
     window.addEventListener('beforeunload', this.cleanup.bind(this));
   }
@@ -79,7 +88,20 @@ export class UIManager {
     if (this.redoButton) this.redoButton.disabled = !canRedo;
   }
 
+  updateViewport() {
+    const viewport = document.querySelector('meta[name=viewport]');
+    if (viewport) {
+      viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0';
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0';
+      document.head.appendChild(meta);
+    }
+  }
+
   initialize() {
+    this.updateViewport();
     this.renderNotesList();
   }
 
@@ -96,10 +118,6 @@ export class UIManager {
     document.getElementById('notes-list-view')?.classList.add('hidden');
     this.history.clear();
     this.renderEditor();
-    
-    requestAnimationFrame(() => {
-      this.noteTitle?.focus();
-    });
   }
 
   closeEditor() {
@@ -130,11 +148,19 @@ export class UIManager {
   handleNoteChange(e) {
     if (!this.currentNote || this.isComposing) return;
     
+    const scrollTop = window.pageYOffset;
+    
     if (e.target === this.noteTitle) {
       this.currentNote.title = e.target.value.trim();
     }
     
     this.debouncedSaveNote();
+    
+    if (this.preventScroll) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollTop);
+      });
+    }
   }
 
   handleUndo() {
@@ -169,11 +195,6 @@ export class UIManager {
     this.currentNote.toggles.push(newToggle);
     this.noteManager.updateNote(this.currentNote);
     this.renderEditor();
-    
-    requestAnimationFrame(() => {
-      const newToggleElement = document.querySelector(`[data-toggle-id="${newToggle.id}"] .toggle-title`);
-      newToggleElement?.focus();
-    });
   }
 
   updateToggleTitle(toggleId, newTitle) {
@@ -258,6 +279,7 @@ export class UIManager {
           <textarea
             data-toggle-id="${toggle.id}"
             placeholder="Start writing..."
+            class="content-textarea"
           >${toggle.content}</textarea>
         </div>
       </div>
@@ -282,46 +304,92 @@ export class UIManager {
       
       input.addEventListener('compositionstart', () => {
         this.isComposing = true;
+        this.preventScroll = true;
       });
       
       input.addEventListener('compositionend', () => {
         this.isComposing = false;
+        this.preventScroll = false;
         this.updateToggleTitle(toggleId, input.value);
       });
       
       input.addEventListener('input', (e) => {
         if (!this.isComposing) {
+          const scrollTop = window.pageYOffset;
           this.updateToggleTitle(toggleId, e.target.value);
+          if (this.preventScroll) {
+            requestAnimationFrame(() => {
+              window.scrollTo(0, scrollTop);
+            });
+          }
         }
+      });
+      
+      input.addEventListener('focus', () => {
+        this.preventScroll = true;
+        requestAnimationFrame(() => {
+          this.preventScroll = false;
+        });
+      });
+      
+      input.addEventListener('blur', () => {
+        this.preventScroll = false;
       });
       
       input.addEventListener('click', (e) => e.stopPropagation());
     });
 
-    document.querySelectorAll('textarea').forEach(textarea => {
+    document.querySelectorAll('.content-textarea').forEach(textarea => {
       const toggleId = parseInt(textarea.dataset.toggleId, 10);
       
       textarea.addEventListener('compositionstart', () => {
         this.isComposing = true;
+        this.preventScroll = true;
       });
       
       textarea.addEventListener('compositionend', () => {
         this.isComposing = false;
+        this.preventScroll = false;
         this.debouncedUpdateToggleContent(toggleId, textarea.value);
       });
       
       textarea.addEventListener('input', (e) => {
         if (!this.isComposing) {
           e.preventDefault();
+          const scrollTop = window.pageYOffset;
           this.debouncedUpdateToggleContent(toggleId, e.target.value);
           this.debouncedAutoResize(textarea);
+          
+          if (this.preventScroll) {
+            requestAnimationFrame(() => {
+              window.scrollTo(0, scrollTop);
+            });
+          }
         }
+      }, { passive: true });
+      
+      textarea.addEventListener('touchstart', () => {
+        this.preventScroll = true;
       }, { passive: true });
       
       textarea.addEventListener('touchend', (e) => {
         e.preventDefault();
         textarea.focus();
+        requestAnimationFrame(() => {
+          this.preventScroll = false;
+        });
       }, { passive: false });
+      
+      textarea.addEventListener('focus', () => {
+        this.preventScroll = true;
+        requestAnimationFrame(() => {
+          this.preventScroll = false;
+        });
+      });
+      
+      textarea.addEventListener('blur', () => {
+        this.preventScroll = false;
+      });
       
       this.autoResizeTextarea(textarea);
     });
@@ -330,9 +398,15 @@ export class UIManager {
   autoResizeTextarea(textarea) {
     if (!textarea) return;
     
+    const scrollTop = window.pageYOffset;
+    
     requestAnimationFrame(() => {
       textarea.style.height = 'auto';
       textarea.style.height = `${textarea.scrollHeight}px`;
+      
+      if (this.preventScroll) {
+        window.scrollTo(0, scrollTop);
+      }
     });
   }
 }
