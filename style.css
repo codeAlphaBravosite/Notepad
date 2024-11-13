@@ -125,7 +125,7 @@ h1 {
 }
 
 .note-card h2 {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   margin-bottom: 0.5rem;
   font-weight: 600;
 }
@@ -308,7 +308,7 @@ h1 {
 /* Scrollbar Styling */
 #notes-list::-webkit-scrollbar,
 .editor-content::-webkit-scrollbar {
-  width: 6px;
+  width: 3px;
 }
 
 #notes-list::-webkit-scrollbar-track,
@@ -340,12 +340,12 @@ h1 {
   }
   
   #note-title {
-    font-size: 1.7rem;
+    font-size: 2rem;
     padding: 1rem 0.75rem;
   }
   
   .toggle-content textarea {
-    font-size: 1.3rem;
+    font-size: 1.4rem;
     padding: 1.25rem;
   }
   
@@ -358,7 +358,7 @@ h1 {
   }
   
   .toggle-title {
-    font-size: 1.3rem;
+    font-size: 1.4rem;
   }
   
   .editor-toolbar {
@@ -374,7 +374,7 @@ h1 {
   }
   
   .note-card h2 {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
   }
 
   .note-card p {
