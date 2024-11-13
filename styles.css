@@ -216,6 +216,7 @@ h1 {
 
 .toggle-content {
     background-color: var(--bg-color);
+    position: relative;
 }
 
 .toggle-textarea {
@@ -229,8 +230,11 @@ h1 {
     font-size: 1rem;
     line-height: 1.5;
     font-family: inherit;
-    overflow-y: hidden;
+    overflow-y: auto;
     display: block;
+    position: relative;
+    word-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 .toggle-textarea:focus, .toggle-title:focus {
