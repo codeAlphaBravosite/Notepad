@@ -39,8 +39,6 @@ class Toggle {
         textarea.value = this.content;
         textarea.placeholder = 'Start writing...';
 
-        this.setupAutoResize(textarea);
-
         content.appendChild(textarea);
         section.appendChild(header);
         section.appendChild(content);
@@ -52,21 +50,6 @@ class Toggle {
 
         this.setupListeners(section, header, titleInput, textarea);
         return section;
-    }
-
-    setupAutoResize(textarea) {
-        const adjustHeight = () => {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-        };
-
-        setTimeout(adjustHeight, 0);
-
-        textarea.addEventListener('input', adjustHeight);
-        textarea.addEventListener('change', adjustHeight);
-        textarea.addEventListener('focus', adjustHeight);
-        textarea.addEventListener('blur', adjustHeight);
-        window.addEventListener('resize', adjustHeight);
     }
 
     setupListeners(section, header, titleInput, textarea) {
@@ -81,15 +64,55 @@ class Toggle {
             this.onChange?.();
         });
 
+        let lastScrollTop = 0;
+        let lastScrollHeight = textarea.scrollHeight;
+
         textarea.addEventListener('input', (e) => {
             this.content = e.target.value;
             this.onChange?.();
+
+            // Save the current cursor position and scroll position
+            const selectionStart = textarea.selectionStart;
+            const selectionEnd = textarea.selectionEnd;
+            const currentScrollTop = textarea.scrollTop;
+
+            // Adjust height
+            textarea.style.height = 'auto';
+            const newHeight = Math.max(textarea.scrollHeight, 100);
+            textarea.style.height = newHeight + 'px';
+
+            // If content was added (height increased)
+            if (textarea.scrollHeight > lastScrollHeight) {
+                // Calculate the height difference
+                const heightDiff = textarea.scrollHeight - lastScrollHeight;
+                
+                // If we're typing at the bottom half of the textarea
+                const cursorPosition = textarea.selectionStart;
+                const totalLength = textarea.value.length;
+                if (cursorPosition > totalLength / 2) {
+                    textarea.scrollTop = currentScrollTop + heightDiff;
+                }
+            }
+
+            // Update last height
+            lastScrollHeight = textarea.scrollHeight;
+            lastScrollTop = textarea.scrollTop;
+
+            // Restore the cursor position
+            textarea.setSelectionRange(selectionStart, selectionEnd);
+        });
+
+        // Initial height adjustment
+        requestAnimationFrame(() => {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.max(textarea.scrollHeight, 100) + 'px';
         });
     }
 
     toggleContent(section) {
         const content = section.querySelector('.toggle-content');
         const icon = section.querySelector('svg');
+        const textarea = content.querySelector('.toggle-textarea');
         
         this.isOpen = !this.isOpen;
         
@@ -97,11 +120,10 @@ class Toggle {
             content.style.display = 'block';
             icon.style.transform = 'rotate(90deg)';
             
-            const textarea = content.querySelector('.toggle-textarea');
-            if (textarea) {
+            requestAnimationFrame(() => {
                 textarea.style.height = 'auto';
-                textarea.style.height = textarea.scrollHeight + 'px';
-            }
+                textarea.style.height = Math.max(textarea.scrollHeight, 100) + 'px';
+            });
         } else {
             content.style.display = 'none';
             icon.style.transform = 'rotate(0deg)';
@@ -111,4 +133,4 @@ class Toggle {
     setOnChange(callback) {
         this.onChange = callback;
     }
-}
+                }
