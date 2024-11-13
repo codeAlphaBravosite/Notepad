@@ -230,6 +230,11 @@ h1 {
     font-size: 1rem;
     line-height: 1.5;
     font-family: inherit;
+    overflow-y: auto;
+    display: block;
+    position: relative;
+    word-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 .toggle-textarea:focus, .toggle-title:focus {
