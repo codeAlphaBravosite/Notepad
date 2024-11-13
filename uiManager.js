@@ -5,11 +5,12 @@ export class UIManager {
     this.noteManager = noteManager;
     this.currentNote = null;
     this.autoSaveTimeout = null;
+    this.lastSavedState = null;
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
       this.redoButton.disabled = !canRedo;
-    });
+    }, 100); // Limit history to 100 states
 
     this.initializeElements();
     this.attachEventListeners();
@@ -35,11 +36,31 @@ export class UIManager {
     this.searchInput.addEventListener('input', () => this.filterNotes());
     this.noteTitle.addEventListener('input', (e) => this.handleNoteChange(e));
 
+    // Handle storage changes from other tabs
     window.addEventListener('storage', (e) => {
       if (e.key === 'notes') {
-        this.renderNotesList();
+        this.handleStorageChange();
       }
     });
+  }
+
+  handleStorageChange() {
+    // Only update if we're not in the middle of editing
+    if (!this.autoSaveTimeout) {
+      this.renderNotesList();
+      
+      // Update current note if it exists
+      if (this.currentNote) {
+        const updatedNote = this.noteManager.getNoteById(this.currentNote.id);
+        if (updatedNote) {
+          this.currentNote = updatedNote;
+          this.renderEditor();
+        } else {
+          // Note was deleted in another tab
+          this.closeEditor();
+        }
+      }
+    }
   }
 
   initialize() {
@@ -53,6 +74,7 @@ export class UIManager {
 
   openEditor(note) {
     this.currentNote = JSON.parse(JSON.stringify(note));
+    this.lastSavedState = JSON.parse(JSON.stringify(note));
     this.editor.classList.remove('hidden');
     document.getElementById('notes-list-view').classList.add('hidden');
     this.history.clear();
@@ -60,9 +82,16 @@ export class UIManager {
   }
 
   closeEditor() {
+    // Save any pending changes before closing
+    if (this.autoSaveTimeout) {
+      clearTimeout(this.autoSaveTimeout);
+      this.saveChanges();
+    }
+
     this.editor.classList.add('hidden');
     document.getElementById('notes-list-view').classList.remove('hidden');
     this.currentNote = null;
+    this.lastSavedState = null;
     this.history.clear();
     this.renderNotesList();
   }
@@ -76,20 +105,56 @@ export class UIManager {
     }
   }
 
+  saveChanges() {
+    if (!this.currentNote) return;
+
+    // Only save if there are actual changes
+    if (JSON.stringify(this.currentNote) !== JSON.stringify(this.lastSavedState)) {
+      this.noteManager.updateNote(this.currentNote);
+      this.lastSavedState = JSON.parse(JSON.stringify(this.currentNote));
+      return true;
+    }
+    return false;
+  }
+
   handleNoteChange(e) {
     if (!this.currentNote) return;
+
+    // Create new state
+    const newState = JSON.parse(JSON.stringify(this.currentNote));
     
+    // Update the state based on the change
+    if (e.target === this.noteTitle) {
+      newState.title = e.target.value;
+    } else if (e.target.classList.contains('toggle-title')) {
+      const toggleId = parseInt(e.target.dataset.toggleId);
+      const toggle = newState.toggles.find(t => t.id === toggleId);
+      if (toggle) {
+        toggle.title = e.target.value;
+      }
+    } else if (e.target.tagName === 'TEXTAREA') {
+      const toggleId = parseInt(e.target.dataset.toggleId);
+      const toggle = newState.toggles.find(t => t.id === toggleId);
+      if (toggle) {
+        toggle.content = e.target.value;
+      }
+    }
+
+    // Push current state to history before updating
+    this.history.push(this.currentNote);
+    
+    // Update current note
+    this.currentNote = newState;
+
+    // Clear existing timeout
     if (this.autoSaveTimeout) {
       clearTimeout(this.autoSaveTimeout);
     }
-    
-    if (e.target === this.noteTitle) {
-      this.currentNote.title = e.target.value;
-    }
-    
+
+    // Set new timeout for saving
     this.autoSaveTimeout = setTimeout(() => {
-      this.history.push(this.currentNote);
-      this.noteManager.updateNote(this.currentNote);
+      this.saveChanges();
+      this.autoSaveTimeout = null;
     }, 500);
   }
 
@@ -97,7 +162,7 @@ export class UIManager {
     const previousState = this.history.undo(this.currentNote);
     if (previousState) {
       this.currentNote = previousState;
-      this.noteManager.updateNote(this.currentNote);
+      this.saveChanges();
       this.renderEditor();
     }
   }
@@ -106,7 +171,7 @@ export class UIManager {
     const nextState = this.history.redo(this.currentNote);
     if (nextState) {
       this.currentNote = nextState;
-      this.noteManager.updateNote(this.currentNote);
+      this.saveChanges();
       this.renderEditor();
     }
   }
@@ -114,46 +179,64 @@ export class UIManager {
   addNewToggle() {
     if (!this.currentNote) return;
     
+    const newState = JSON.parse(JSON.stringify(this.currentNote));
     const newToggle = {
       id: Date.now(),
-      title: `Section ${this.currentNote.toggles.length + 1}`,
+      title: `Section ${newState.toggles.length + 1}`,
       content: '',
       isOpen: true
     };
     
     this.history.push(this.currentNote);
-    this.currentNote.toggles.push(newToggle);
-    this.noteManager.updateNote(this.currentNote);
+    newState.toggles.push(newToggle);
+    this.currentNote = newState;
+    this.saveChanges();
     this.renderEditor();
   }
 
   updateToggleTitle(toggleId, newTitle) {
     if (!this.currentNote) return;
     
-    const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
+    const newState = JSON.parse(JSON.stringify(this.currentNote));
+    const toggle = newState.toggles.find(t => t.id === toggleId);
     if (toggle) {
       toggle.title = newTitle;
-      this.handleNoteChange({ target: toggle });
+      this.handleNoteChange({ 
+        target: { 
+          classList: { contains: () => true },
+          dataset: { toggleId: toggleId },
+          value: newTitle 
+        } 
+      });
     }
   }
 
   updateToggleContent(toggleId, newContent) {
     if (!this.currentNote) return;
     
-    const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
+    const newState = JSON.parse(JSON.stringify(this.currentNote));
+    const toggle = newState.toggles.find(t => t.id === toggleId);
     if (toggle) {
       toggle.content = newContent;
-      this.handleNoteChange({ target: toggle });
+      this.handleNoteChange({ 
+        target: { 
+          tagName: 'TEXTAREA',
+          dataset: { toggleId: toggleId },
+          value: newContent 
+        } 
+      });
     }
   }
 
   toggleSection(toggleId) {
     if (!this.currentNote) return;
     
-    const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
+    const newState = JSON.parse(JSON.stringify(this.currentNote));
+    const toggle = newState.toggles.find(t => t.id === toggleId);
     if (toggle) {
       toggle.isOpen = !toggle.isOpen;
-      this.noteManager.updateNote(this.currentNote);
+      this.currentNote = newState;
+      this.saveChanges();
       this.renderEditor();
     }
   }
@@ -179,7 +262,7 @@ export class UIManager {
     document.querySelectorAll('.note-card').forEach(card => {
       card.addEventListener('click', () => {
         const noteId = parseInt(card.dataset.noteId);
-        const note = this.noteManager.notes.find(n => n.id === noteId);
+        const note = this.noteManager.getNoteById(noteId);
         if (note) this.openEditor(note);
       });
     });
@@ -229,61 +312,50 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
-      // Add input event listener with debouncing
       let resizeTimeout;
       textarea.addEventListener('input', (e) => {
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
         
-        // Clear any pending resize
         if (resizeTimeout) {
           cancelAnimationFrame(resizeTimeout);
         }
         
-        // Schedule resize for next frame
         resizeTimeout = requestAnimationFrame(() => {
           this.autoResizeTextarea(textarea);
         });
       });
 
-      // Initial resize
       this.autoResizeTextarea(textarea);
     });
   }
 
   autoResizeTextarea(textarea) {
-    // Store the current cursor position and scroll position
     const editorContent = document.querySelector('.editor-content');
     const scrollTop = editorContent.scrollTop;
     const selectionStart = textarea.selectionStart;
     const selectionEnd = textarea.selectionEnd;
     
-    // Get the current caret position relative to the viewport
     const caretPosition = textarea.getBoundingClientRect();
     const currentCaretY = caretPosition.top + (textarea.scrollHeight * (textarea.selectionEnd / textarea.value.length));
 
-    // Resize the textarea
     textarea.style.height = 'auto';
     const newHeight = textarea.scrollHeight;
     textarea.style.height = newHeight + 'px';
 
-    // Restore cursor position
     textarea.selectionStart = selectionStart;
     textarea.selectionEnd = selectionEnd;
 
-    // Calculate if cursor would be below viewport
     const viewportHeight = window.innerHeight;
-    const buffer = 150; // Buffer space from bottom of viewport
+    const buffer = 150;
     const targetScrollPosition = currentCaretY - viewportHeight + buffer;
 
     if (currentCaretY > viewportHeight - buffer) {
-      // Smooth scroll to keep cursor visible
       editorContent.scrollTo({
         top: targetScrollPosition,
         behavior: 'smooth'
       });
     } else {
-      // Restore original scroll position if cursor is visible
       editorContent.scrollTop = scrollTop;
     }
   }
-}
+  }
