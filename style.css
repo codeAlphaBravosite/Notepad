@@ -283,6 +283,7 @@ h1 {
 
 .toggle-content textarea {
   width: 100%;
+  overflow-y: hidden;
   min-height: 100px;
   padding: 1.5rem;
   background: transparent;
@@ -290,15 +291,8 @@ h1 {
   color: var(--text-color);
   font-size: 1.3rem;
   line-height: 1.7;
-  font-family: inherit;
   resize: none;
   overflow: hidden;
-  height: auto;
-  word-wrap: break-word;
-  word-break: break-word;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: manipulation;
 }
 
 .toggle-content textarea:focus,
