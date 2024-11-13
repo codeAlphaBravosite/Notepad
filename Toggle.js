@@ -64,49 +64,101 @@ class Toggle {
             this.onChange?.();
         });
 
-        let lastScrollTop = 0;
-        let lastScrollHeight = textarea.scrollHeight;
+        // Initialize scroll tracking variables
+        let isTyping = false;
+        let typingTimer;
+        const cursorPositions = new Map();
 
-        textarea.addEventListener('input', (e) => {
-            this.content = e.target.value;
-            this.onChange?.();
-
-            // Save the current cursor position and scroll position
+        const updateTextarea = () => {
+            // Store current cursor and scroll positions
             const selectionStart = textarea.selectionStart;
             const selectionEnd = textarea.selectionEnd;
-            const currentScrollTop = textarea.scrollTop;
+            const scrollTop = textarea.scrollTop;
+            const scrollHeight = textarea.scrollHeight;
 
-            // Adjust height
+            // Calculate cursor position relative to viewport
+            const cursorCoords = this.getCaretCoordinates(textarea);
+            if (cursorCoords) {
+                cursorPositions.set(textarea, cursorCoords);
+            }
+
+            // Update height
             textarea.style.height = 'auto';
             const newHeight = Math.max(textarea.scrollHeight, 100);
             textarea.style.height = newHeight + 'px';
 
-            // If content was added (height increased)
-            if (textarea.scrollHeight > lastScrollHeight) {
-                // Calculate the height difference
-                const heightDiff = textarea.scrollHeight - lastScrollHeight;
-                
-                // If we're typing at the bottom half of the textarea
-                const cursorPosition = textarea.selectionStart;
-                const totalLength = textarea.value.length;
-                if (cursorPosition > totalLength / 2) {
-                    textarea.scrollTop = currentScrollTop + heightDiff;
+            // Restore cursor position
+            textarea.setSelectionRange(selectionStart, selectionEnd);
+
+            // Adjust scroll position to keep cursor in view
+            if (isTyping) {
+                const newCursorCoords = this.getCaretCoordinates(textarea);
+                if (newCursorCoords && cursorCoords) {
+                    const scrollAdjustment = newCursorCoords.top - cursorCoords.top;
+                    textarea.scrollTop = scrollTop + scrollAdjustment;
                 }
             }
+        };
 
-            // Update last height
-            lastScrollHeight = textarea.scrollHeight;
-            lastScrollTop = textarea.scrollTop;
+        textarea.addEventListener('input', () => {
+            this.content = textarea.value;
+            this.onChange?.();
 
-            // Restore the cursor position
-            textarea.setSelectionRange(selectionStart, selectionEnd);
+            isTyping = true;
+            clearTimeout(typingTimer);
+            
+            updateTextarea();
+            
+            typingTimer = setTimeout(() => {
+                isTyping = false;
+            }, 1000);
         });
 
-        // Initial height adjustment
+        textarea.addEventListener('focus', updateTextarea);
+        textarea.addEventListener('blur', updateTextarea);
+
+        // Handle scroll position during continuous typing
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                requestAnimationFrame(updateTextarea);
+            }
+        });
+
+        // Initial setup
         requestAnimationFrame(() => {
             textarea.style.height = 'auto';
             textarea.style.height = Math.max(textarea.scrollHeight, 100) + 'px';
         });
+    }
+
+    getCaretCoordinates(textarea) {
+        const position = textarea.selectionStart;
+        
+        // Create a mirror div to measure
+        const mirror = document.createElement('div');
+        mirror.style.cssText = window.getComputedStyle(textarea).cssText;
+        mirror.style.height = 'auto';
+        mirror.style.position = 'absolute';
+        mirror.style.visibility = 'hidden';
+        mirror.style.whiteSpace = 'pre-wrap';
+        
+        // Create content before cursor
+        const content = textarea.value.substring(0, position);
+        mirror.textContent = content;
+        
+        // Add mirror to DOM temporarily
+        document.body.appendChild(mirror);
+        
+        // Get coordinates
+        const coords = {
+            top: mirror.offsetHeight,
+            left: mirror.offsetWidth
+        };
+        
+        // Clean up
+        document.body.removeChild(mirror);
+        
+        return coords;
     }
 
     toggleContent(section) {
@@ -133,4 +185,4 @@ class Toggle {
     setOnChange(callback) {
         this.onChange = callback;
     }
-                }
+}
