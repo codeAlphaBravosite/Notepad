@@ -221,7 +221,7 @@ h1 {
 
 .toggle-textarea {
     width: 100%;
-    min-height: 100px;
+    min-height: 200px;
     padding: 1rem;
     border: none;
     resize: none;
@@ -230,11 +230,6 @@ h1 {
     font-size: 1rem;
     line-height: 1.5;
     font-family: inherit;
-    overflow-y: auto;
-    display: block;
-    position: relative;
-    word-wrap: break-word;
-    white-space: pre-wrap;
 }
 
 .toggle-textarea:focus, .toggle-title:focus {
