@@ -1,3 +1,4 @@
+// uiManager.js
 import { HistoryManager } from './history.js';
 
 export class UIManager {
@@ -229,20 +230,9 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
-      // Add input event listener with debouncing
-      let resizeTimeout;
       textarea.addEventListener('input', (e) => {
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
-        
-        // Clear any pending resize
-        if (resizeTimeout) {
-          cancelAnimationFrame(resizeTimeout);
-        }
-        
-        // Schedule resize for next frame
-        resizeTimeout = requestAnimationFrame(() => {
-          this.autoResizeTextarea(textarea);
-        });
+        this.autoResizeTextarea(textarea);
       });
 
       // Initial resize
@@ -250,40 +240,21 @@ export class UIManager {
     });
   }
 
+  // Fixed autoResizeTextarea function
   autoResizeTextarea(textarea) {
-    // Store the current cursor position and scroll position
-    const editorContent = document.querySelector('.editor-content');
-    const scrollTop = editorContent.scrollTop;
+    // Store the cursor position
     const selectionStart = textarea.selectionStart;
     const selectionEnd = textarea.selectionEnd;
     
-    // Get the current caret position relative to the viewport
-    const caretPosition = textarea.getBoundingClientRect();
-    const currentCaretY = caretPosition.top + (textarea.scrollHeight * (textarea.selectionEnd / textarea.value.length));
-
-    // Resize the textarea
+    // Reset height temporarily to get the correct scrollHeight
     textarea.style.height = 'auto';
+    
+    // Set the height to match content
     const newHeight = textarea.scrollHeight;
     textarea.style.height = newHeight + 'px';
-
+    
     // Restore cursor position
     textarea.selectionStart = selectionStart;
     textarea.selectionEnd = selectionEnd;
-
-    // Calculate if cursor would be below viewport
-    const viewportHeight = window.innerHeight;
-    const buffer = 150; // Buffer space from bottom of viewport
-    const targetScrollPosition = currentCaretY - viewportHeight + buffer;
-
-    if (currentCaretY > viewportHeight - buffer) {
-      // Smooth scroll to keep cursor visible
-      editorContent.scrollTo({
-        top: targetScrollPosition,
-        behavior: 'smooth'
-      });
-    } else {
-      // Restore original scroll position if cursor is visible
-      editorContent.scrollTop = scrollTop;
-    }
   }
-}
+                          }
