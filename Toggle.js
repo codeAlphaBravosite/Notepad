@@ -84,7 +84,7 @@ class Toggle {
 
             // Update height
             textarea.style.height = 'auto';
-            const newHeight = Math.max(textarea.scrollHeight, 200);
+            const newHeight = Math.max(textarea.scrollHeight, 0);
             textarea.style.height = newHeight + 'px';
 
             // Restore cursor position
@@ -127,7 +127,7 @@ class Toggle {
         // Initial setup
         requestAnimationFrame(() => {
             textarea.style.height = 'auto';
-            textarea.style.height = Math.max(textarea.scrollHeight, 200) + 'px';
+            textarea.style.height = Math.max(textarea.scrollHeight, 0) + 'px';
         });
     }
 
