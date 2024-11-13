@@ -1,32 +1,94 @@
 export class HistoryManager {
-  constructor(onChange) {
+  constructor(onChange, maxSize = 100) {
     this.undoStack = [];
     this.redoStack = [];
     this.onChange = onChange;
+    this.maxSize = maxSize;
+  }
+
+  validateState(state) {
+    try {
+      if (!state || typeof state !== 'object') return false;
+      if (!Array.isArray(state.toggles)) return false;
+      if (typeof state.id !== 'number') return false;
+      if (typeof state.title !== 'string') return false;
+      return true;
+    } catch (error) {
+      console.error('State validation failed:', error);
+      return false;
+    }
+  }
+
+  createHistoryItem(state) {
+    return {
+      state: JSON.stringify(state),
+      timestamp: Date.now()
+    };
   }
 
   push(state) {
-    this.undoStack.push(JSON.stringify(state));
-    this.redoStack = [];
+    if (!this.validateState(state)) {
+      console.error('Invalid state pushed to history');
+      return;
+    }
+
+    if (this.undoStack.length >= this.maxSize) {
+      this.undoStack.shift(); // Remove oldest state
+    }
+
+    this.undoStack.push(this.createHistoryItem(state));
+    this.redoStack = []; // Clear redo stack on new change
     this.updateButtons();
   }
 
   undo(currentState) {
     if (this.undoStack.length === 0) return null;
     
-    this.redoStack.push(JSON.stringify(currentState));
-    const previousState = JSON.parse(this.undoStack.pop());
-    this.updateButtons();
-    return previousState;
+    try {
+      const previousHistoryItem = this.undoStack.pop();
+      const previousState = JSON.parse(previousHistoryItem.state);
+      
+      if (!this.validateState(previousState)) {
+        throw new Error('Invalid state in history');
+      }
+
+      if (currentState) {
+        this.redoStack.push(this.createHistoryItem(currentState));
+      }
+
+      this.updateButtons();
+      return previousState;
+    } catch (error) {
+      console.error('Error during undo:', error);
+      this.undoStack.pop(); // Remove invalid state
+      this.updateButtons();
+      return null;
+    }
   }
 
   redo(currentState) {
     if (this.redoStack.length === 0) return null;
     
-    this.undoStack.push(JSON.stringify(currentState));
-    const nextState = JSON.parse(this.redoStack.pop());
-    this.updateButtons();
-    return nextState;
+    try {
+      const nextHistoryItem = this.redoStack.pop();
+      const nextState = JSON.parse(nextHistoryItem.state);
+      
+      if (!this.validateState(nextState)) {
+        throw new Error('Invalid state in history');
+      }
+
+      if (currentState) {
+        this.undoStack.push(this.createHistoryItem(currentState));
+      }
+
+      this.updateButtons();
+      return nextState;
+    } catch (error) {
+      console.error('Error during redo:', error);
+      this.redoStack.pop(); // Remove invalid state
+      this.updateButtons();
+      return null;
+    }
   }
 
   updateButtons() {
@@ -42,5 +104,12 @@ export class HistoryManager {
     this.undoStack = [];
     this.redoStack = [];
     this.updateButtons();
+  }
+
+  getHistorySize() {
+    return {
+      undo: this.undoStack.length,
+      redo: this.redoStack.length
+    };
   }
 }
