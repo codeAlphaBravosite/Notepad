@@ -1,10 +1,12 @@
 import { HistoryManager } from './history.js';
+import { TextareaManager } from './textareaManager.js';
 
 export class UIManager {
   constructor(noteManager) {
     this.noteManager = noteManager;
     this.currentNote = null;
     this.autoSaveTimeout = null;
+    this.textareaManagers = new Map();
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -36,36 +38,11 @@ export class UIManager {
     this.searchInput.addEventListener('input', () => this.filterNotes());
     this.noteTitle.addEventListener('input', (e) => this.handleNoteChange(e));
 
-    window.visualViewport?.addEventListener('resize', () => this.handleViewportResize());
-    window.visualViewport?.addEventListener('scroll', () => this.handleViewportScroll());
-
     window.addEventListener('storage', (e) => {
       if (e.key === 'notes') {
         this.renderNotesList();
       }
     });
-  }
-
-  handleViewportResize() {
-    if (!window.visualViewport) return;
-    
-    const viewport = window.visualViewport;
-    if (this.editorContent) {
-      this.editorContent.style.height = `${viewport.height - this.editorContent.offsetTop}px`;
-      document.body.classList.toggle('keyboard-visible', window.innerHeight - viewport.height > 150);
-    }
-  }
-
-  handleViewportScroll() {
-    if (document.activeElement?.tagName === 'TEXTAREA') {
-      const textarea = document.activeElement;
-      const rect = textarea.getBoundingClientRect();
-      const viewport = window.visualViewport;
-      
-      if (viewport && rect.bottom > viewport.height) {
-        textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
   }
 
   initialize() {
@@ -83,12 +60,6 @@ export class UIManager {
     document.getElementById('notes-list-view').classList.add('hidden');
     this.history.clear();
     this.renderEditor();
-    
-    // Reset viewport adjustments
-    document.body.classList.remove('keyboard-visible');
-    if (this.editorContent) {
-      this.editorContent.style.height = '';
-    }
   }
 
   closeEditor() {
@@ -96,7 +67,7 @@ export class UIManager {
     document.getElementById('notes-list-view').classList.remove('hidden');
     this.currentNote = null;
     this.history.clear();
-    document.body.classList.remove('keyboard-visible');
+    this.textareaManagers.clear();
     this.renderNotesList();
   }
 
@@ -159,7 +130,6 @@ export class UIManager {
     this.noteManager.updateNote(this.currentNote);
     this.renderEditor();
 
-    // Focus the new toggle's textarea after rendering
     requestAnimationFrame(() => {
       const newTextarea = document.querySelector(`textarea[data-toggle-id="${newToggle.id}"]`);
       if (newTextarea) {
@@ -255,6 +225,9 @@ export class UIManager {
   }
 
   attachToggleEventListeners() {
+    // Clear existing textarea managers
+    this.textareaManagers.clear();
+
     document.querySelectorAll('.toggle-header').forEach(header => {
       header.addEventListener('click', (e) => {
         if (!e.target.classList.contains('toggle-title')) {
@@ -271,41 +244,9 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
-      this.autoResizeTextarea(textarea);
+      // Create and store a new TextareaManager for each textarea
+      const manager = new TextareaManager(textarea);
+      this.textareaManagers.set(textarea, manager);
 
       textarea.addEventListener('input', (e) => {
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
-        this.autoResizeTextarea(textarea);
-      });
-
-      textarea.addEventListener('focus', () => {
-        const toggle = textarea.closest('.toggle-section');
-        if (toggle) {
-          toggle.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      });
-
-      textarea.addEventListener('blur', () => {
-        window.scrollTo(0, window.scrollY);
-      });
-    });
-  }
-
-  autoResizeTextarea(textarea) {
-    textarea.style.height = 'auto';
-    const newHeight = Math.max(100, textarea.scrollHeight);
-    textarea.style.height = `${newHeight}px`;
-    
-    requestAnimationFrame(() => {
-      if (document.activeElement === textarea) {
-        const rect = textarea.getBoundingClientRect();
-        const viewportHeight = window.visualViewport?.height || window.innerHeight;
-        const keyboardHeight = window.innerHeight - viewportHeight;
-        
-        if (rect.bottom > viewportHeight - keyboardHeight) {
-          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    });
-  }
-}
