@@ -8,6 +8,7 @@ export class UIManager {
     this.lastKnownScrollPosition = 0;
     this.lastActiveToggleId = null;
     this.lastCaretPosition = null;
+    this.scrollPositions = new Map(); // For storing scroll positions of textareas
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -98,7 +99,6 @@ export class UIManager {
       clearTimeout(this.autoSaveTimeout);
     }
     
-    // Store the current state before making changes
     const previousState = JSON.parse(JSON.stringify(this.currentNote));
     
     if (e.target === this.noteTitle) {
@@ -106,7 +106,6 @@ export class UIManager {
     }
     
     this.autoSaveTimeout = setTimeout(() => {
-      // Only push to history if there are actual changes
       if (JSON.stringify(previousState) !== JSON.stringify(this.currentNote)) {
         this.history.push(previousState);
         this.noteManager.updateNote(this.currentNote);
@@ -115,36 +114,45 @@ export class UIManager {
   }
 
   handleUndo() {
-    // Save scroll position and active toggle before undo
     this.saveEditorState();
     
     const previousState = this.history.undo(this.currentNote);
     if (previousState) {
       this.currentNote = previousState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true); // Pass true to indicate this is an undo/redo operation
+      this.renderEditor(true);
     }
   }
 
   handleRedo() {
-    // Save scroll position and active toggle before redo
     this.saveEditorState();
     
     const nextState = this.history.redo(this.currentNote);
     if (nextState) {
       this.currentNote = nextState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true); // Pass true to indicate this is an undo/redo operation
+      this.renderEditor(true);
     }
   }
 
   saveEditorState() {
+    // Save editor content scroll position
     const editorContent = document.querySelector('.editor-content');
     if (editorContent) {
       this.lastKnownScrollPosition = editorContent.scrollTop;
     }
     
-    // Save the active element and its caret position
+    // Save individual textarea scroll positions
+    this.scrollPositions.clear();
+    document.querySelectorAll('textarea').forEach(textarea => {
+      const toggleId = parseInt(textarea.dataset.toggleId);
+      this.scrollPositions.set(toggleId, {
+        scrollTop: textarea.scrollTop,
+        scrollLeft: textarea.scrollLeft
+      });
+    });
+    
+    // Save active element and caret position
     const activeElement = document.activeElement;
     if (activeElement && activeElement.tagName === 'TEXTAREA') {
       this.lastCaretPosition = {
@@ -161,10 +169,24 @@ export class UIManager {
   }
 
   restoreEditorState() {
+    // Restore editor content scroll position
     const editorContent = document.querySelector('.editor-content');
     if (editorContent) {
-      editorContent.scrollTop = this.lastKnownScrollPosition;
+      requestAnimationFrame(() => {
+        editorContent.scrollTop = this.lastKnownScrollPosition;
+      });
     }
+
+    // Restore individual textarea scroll positions
+    this.scrollPositions.forEach((scrollPos, toggleId) => {
+      const textarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
+      if (textarea) {
+        requestAnimationFrame(() => {
+          textarea.scrollTop = scrollPos.scrollTop;
+          textarea.scrollLeft = scrollPos.scrollLeft;
+        });
+      }
+    });
 
     // Restore focus and caret position
     if (this.lastActiveToggleId) {
@@ -178,10 +200,6 @@ export class UIManager {
             this.lastCaretPosition.start,
             this.lastCaretPosition.end
           );
-        } else {
-          // If no caret position saved, move to end
-          const length = textarea.value.length;
-          textarea.setSelectionRange(length, length);
         }
       }
     }
@@ -272,7 +290,6 @@ export class UIManager {
   renderEditor(isUndoRedo = false) {
     if (!this.currentNote) return;
 
-    // Store the current state if this is not an undo/redo operation
     if (!isUndoRedo) {
       this.saveEditorState();
     }
@@ -300,9 +317,7 @@ export class UIManager {
 
     this.attachToggleEventListeners();
 
-    // Restore the state after rendering
     if (isUndoRedo) {
-      // Use requestAnimationFrame to ensure DOM is updated before restoring state
       requestAnimationFrame(() => {
         this.restoreEditorState();
       });
@@ -344,21 +359,17 @@ export class UIManager {
     });
   }
 
-autoResizeTextarea(textarea) {
-  const editorContent = document.querySelector('.editor-content');
-
-  // Lock the current scroll position of the container
-  const currentScrollTop = editorContent.scrollTop;
-
-  // Save caret position in the textarea
-  const selectionStart = textarea.selectionStart;
-  const selectionEnd = textarea.selectionEnd;
-
-  // Restore caret position to avoid any jumps
-  textarea.selectionStart = selectionStart;
-  textarea.selectionEnd = selectionEnd;
-
-  // Restore the scroll position of the editor container
-  editorContent.scrollTop = currentScrollTop;
-}
+  autoResizeTextarea(textarea) {
+    const editorContent = document.querySelector('.editor-content');
+    const currentScrollTop = editorContent.scrollTop;
+    const textareaScrollTop = textarea.scrollTop;
+    
+    // Set height to auto to get the real scroll height
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+    
+    // Restore scroll positions
+    editorContent.scrollTop = currentScrollTop;
+    textarea.scrollTop = textareaScrollTop;
+  }
 }
