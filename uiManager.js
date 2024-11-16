@@ -326,47 +326,23 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
-      let resizeTimeout;
       textarea.addEventListener('input', (e) => {
+        const editorContent = document.querySelector('.editor-content');
+        const currentScrollTop = editorContent.scrollTop;
+        
+        // Save caret position
+        const selectionStart = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+        
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
         
-        if (resizeTimeout) {
-          cancelAnimationFrame(resizeTimeout);
-        }
+        // Restore caret position
+        textarea.selectionStart = selectionStart;
+        textarea.selectionEnd = selectionEnd;
         
-        resizeTimeout = requestAnimationFrame(() => {
-          this.autoResizeTextarea(textarea);
-        });
+        // Restore scroll position
+        editorContent.scrollTop = currentScrollTop;
       });
-
-      // Initial resize
-      this.autoResizeTextarea(textarea);
     });
   }
-
-autoResizeTextarea(textarea) {
-  const editorContent = document.querySelector('.editor-content');
-
-  // Lock the current scroll position of the container
-  const currentScrollTop = editorContent.scrollTop;
-
-  // Save caret position in the textarea
-  const selectionStart = textarea.selectionStart;
-  const selectionEnd = textarea.selectionEnd;
-
-  // Set a fixed height (you can adjust this value)
-  const FIXED_HEIGHT = '400px';
-  
-  // Apply styles to make textarea scrollable but not expandable
-  textarea.style.height = FIXED_HEIGHT;
-  textarea.style.resize = 'none';
-  textarea.style.overflowY = 'auto';
-
-  // Restore caret position to avoid any jumps
-  textarea.selectionStart = selectionStart;
-  textarea.selectionEnd = selectionEnd;
-
-  // Restore the scroll position of the editor container
-  editorContent.scrollTop = currentScrollTop;
-}
-}
+                                          }
