@@ -5,7 +5,6 @@ export class UIManager {
     this.noteManager = noteManager;
     this.currentNote = null;
     this.autoSaveTimeout = null;
-    this.lastActiveToggleId = null;
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -111,40 +110,20 @@ export class UIManager {
   }
 
   handleUndo() {
-    // Save active toggle ID before undo
-    const activeElement = document.activeElement;
-    if (activeElement && activeElement.tagName === 'TEXTAREA') {
-      const toggleSection = activeElement.closest('.toggle-section');
-      if (toggleSection) {
-        const toggleHeader = toggleSection.querySelector('.toggle-header');
-        this.lastActiveToggleId = toggleHeader?.dataset.toggleId;
-      }
-    }
-    
     const previousState = this.history.undo(this.currentNote);
     if (previousState) {
       this.currentNote = previousState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true);
+      this.renderEditor();
     }
   }
 
   handleRedo() {
-    // Save active toggle ID before redo
-    const activeElement = document.activeElement;
-    if (activeElement && activeElement.tagName === 'TEXTAREA') {
-      const toggleSection = activeElement.closest('.toggle-section');
-      if (toggleSection) {
-        const toggleHeader = toggleSection.querySelector('.toggle-header');
-        this.lastActiveToggleId = toggleHeader?.dataset.toggleId;
-      }
-    }
-    
     const nextState = this.history.redo(this.currentNote);
     if (nextState) {
       this.currentNote = nextState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true);
+      this.renderEditor();
     }
   }
 
@@ -230,7 +209,7 @@ export class UIManager {
     });
   }
 
-  renderEditor(isUndoRedo = false) {
+  renderEditor() {
     if (!this.currentNote) return;
 
     this.noteTitle.value = this.currentNote.title;
@@ -249,22 +228,13 @@ export class UIManager {
           <textarea
             data-toggle-id="${toggle.id}"
             placeholder="Start writing..."
-            style="height: 250px; resize: none;"
+            style="height: 250px;"
           >${toggle.content}</textarea>
         </div>
       </div>
     `).join('');
 
     this.attachToggleEventListeners();
-
-    // Restore focus after undo/redo
-    if (isUndoRedo && this.lastActiveToggleId) {
-      const toggleElement = document.querySelector(`[data-toggle-id="${this.lastActiveToggleId}"]`);
-      const textarea = toggleElement?.closest('.toggle-section')?.querySelector('textarea');
-      if (textarea) {
-        textarea.focus();
-      }
-    }
   }
 
   attachToggleEventListeners() {
@@ -289,4 +259,4 @@ export class UIManager {
       });
     });
   }
-        }
+  }
