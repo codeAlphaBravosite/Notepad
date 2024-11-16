@@ -289,6 +289,10 @@ h1 {
   font-family: inherit;
   resize: none;
   overflow-y: auto;
+  scroll-behavior: auto !important;
+  overflow-anchor: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .toggle-content textarea:focus,
