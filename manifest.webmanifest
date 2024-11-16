@@ -1,6 +1,6 @@
 {
-  "name": "Writer",
-  "short_name": "Writer",
+  "name": "Script Writer",
+  "short_name": "Script Writer",
   "description": "A powerful writing app",
   "start_url": "./index.html",
   "scope": ".",
