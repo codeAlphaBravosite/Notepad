@@ -8,6 +8,7 @@ export class UIManager {
     this.lastKnownScrollPosition = 0;
     this.lastActiveToggleId = null;
     this.lastCaretPosition = null;
+    this.lastTextareaScrollPosition = null;
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -149,6 +150,9 @@ export class UIManager {
         end: activeElement.selectionEnd
       };
       
+      // Save the textarea's scroll position
+      this.lastTextareaScrollPosition = activeElement.scrollTop;
+      
       const toggleSection = activeElement.closest('.toggle-section');
       if (toggleSection) {
         const toggleHeader = toggleSection.querySelector('.toggle-header');
@@ -177,6 +181,14 @@ export class UIManager {
         } else {
           const length = textarea.value.length;
           textarea.setSelectionRange(length, length);
+        }
+        
+        // Restore the textarea's scroll position
+        if (this.lastTextareaScrollPosition !== undefined) {
+          // Use requestAnimationFrame to ensure the scroll happens after the content is rendered
+          requestAnimationFrame(() => {
+            textarea.scrollTop = this.lastTextareaScrollPosition;
+          });
         }
       }
     }
@@ -350,4 +362,4 @@ export class UIManager {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
-}
+      }
