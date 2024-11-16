@@ -5,6 +5,9 @@ export class UIManager {
     this.noteManager = noteManager;
     this.currentNote = null;
     this.autoSaveTimeout = null;
+    this.lastKnownScrollPosition = 0;
+    this.lastActiveToggleId = null;
+    this.lastCaretPosition = null;
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -95,6 +98,7 @@ export class UIManager {
       clearTimeout(this.autoSaveTimeout);
     }
     
+    // Store the current state before making changes
     const previousState = JSON.parse(JSON.stringify(this.currentNote));
     
     if (e.target === this.noteTitle) {
@@ -102,6 +106,7 @@ export class UIManager {
     }
     
     this.autoSaveTimeout = setTimeout(() => {
+      // Only push to history if there are actual changes
       if (JSON.stringify(previousState) !== JSON.stringify(this.currentNote)) {
         this.history.push(previousState);
         this.noteManager.updateNote(this.currentNote);
@@ -110,20 +115,70 @@ export class UIManager {
   }
 
   handleUndo() {
+    this.saveEditorState();
+    
     const previousState = this.history.undo(this.currentNote);
     if (previousState) {
       this.currentNote = previousState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor();
+      this.renderEditor(true);
     }
   }
 
   handleRedo() {
+    this.saveEditorState();
+    
     const nextState = this.history.redo(this.currentNote);
     if (nextState) {
       this.currentNote = nextState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor();
+      this.renderEditor(true);
+    }
+  }
+
+  saveEditorState() {
+    const editorContent = document.querySelector('.editor-content');
+    if (editorContent) {
+      this.lastKnownScrollPosition = editorContent.scrollTop;
+    }
+    
+    const activeElement = document.activeElement;
+    if (activeElement && activeElement.tagName === 'TEXTAREA') {
+      this.lastCaretPosition = {
+        start: activeElement.selectionStart,
+        end: activeElement.selectionEnd
+      };
+      
+      const toggleSection = activeElement.closest('.toggle-section');
+      if (toggleSection) {
+        const toggleHeader = toggleSection.querySelector('.toggle-header');
+        this.lastActiveToggleId = toggleHeader?.dataset.toggleId;
+      }
+    }
+  }
+
+  restoreEditorState() {
+    const editorContent = document.querySelector('.editor-content');
+    if (editorContent) {
+      editorContent.scrollTop = this.lastKnownScrollPosition;
+    }
+
+    if (this.lastActiveToggleId) {
+      const toggleElement = document.querySelector(`[data-toggle-id="${this.lastActiveToggleId}"]`);
+      const textarea = toggleElement?.closest('.toggle-section')?.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        
+        if (this.lastCaretPosition) {
+          textarea.setSelectionRange(
+            this.lastCaretPosition.start,
+            this.lastCaretPosition.end
+          );
+        } else {
+          const length = textarea.value.length;
+          textarea.setSelectionRange(length, length);
+        }
+      }
     }
   }
 
@@ -189,16 +244,11 @@ export class UIManager {
 
   renderNotesList(searchTerm = '') {
     const filteredNotes = this.noteManager.getNotes(searchTerm);
+    const notesHtml = filteredNotes.length ? 
+      filteredNotes.map(note => this.createNoteCardHtml(note)).join('') : 
+      '<p class="empty-state">No notes found</p>';
     
-    this.notesList.innerHTML = filteredNotes.length ? filteredNotes.map(note => `
-      <div class="note-card" data-note-id="${note.id}">
-        <h2>${note.title || 'Untitled Note'}</h2>
-        <p>${note.toggles.map(t => t.content).join(' ').slice(0, 150) || 'No content'}</p>
-        <div class="note-meta">
-          Last updated: ${new Date(note.updated).toLocaleDateString()}
-        </div>
-      </div>
-    `).join('') : '<p class="empty-state">No notes found</p>';
+    this.notesList.innerHTML = notesHtml;
 
     document.querySelectorAll('.note-card').forEach(card => {
       card.addEventListener('click', () => {
@@ -209,32 +259,63 @@ export class UIManager {
     });
   }
 
-  renderEditor() {
-    if (!this.currentNote) return;
-
-    this.noteTitle.value = this.currentNote.title;
+  createNoteCardHtml(note) {
+    const title = this.escapeHtml(note.title) || 'Untitled Note';
+    const content = this.escapeHtml(note.toggles.map(t => t.content).join(' ').slice(0, 150)) || 'No content';
+    const date = new Date(note.updated).toLocaleDateString();
     
-    this.togglesContainer.innerHTML = this.currentNote.toggles.map(toggle => `
-      <div class="toggle-section">
-        <div class="toggle-header" data-toggle-id="${toggle.id}">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
-               class="toggle-icon ${toggle.isOpen ? 'open' : ''}">
-            <path d="M9 18l6-6-6-6" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <input type="text" class="toggle-title" value="${toggle.title}"
-                 data-toggle-id="${toggle.id}" />
-        </div>
-        <div class="toggle-content ${toggle.isOpen ? 'open' : ''}">
-          <textarea
-            data-toggle-id="${toggle.id}"
-            placeholder="Start writing..."
-            style="height: 300px;"
-          >${toggle.content}</textarea>
+    return `
+      <div class="note-card" data-note-id="${note.id}">
+        <h2>${title}</h2>
+        <p>${content}</p>
+        <div class="note-meta">
+          Last updated: ${date}
         </div>
       </div>
-    `).join('');
+    `;
+  }
 
+  renderEditor(isUndoRedo = false) {
+    if (!this.currentNote) return;
+
+    if (!isUndoRedo) {
+      this.saveEditorState();
+    }
+
+    this.noteTitle.value = this.escapeHtml(this.currentNote.title);
+    
+    const togglesHtml = this.currentNote.toggles.map(toggle => {
+      const escapedTitle = this.escapeHtml(toggle.title);
+      const escapedContent = this.escapeHtml(toggle.content);
+      
+      return `
+        <div class="toggle-section">
+          <div class="toggle-header" data-toggle-id="${toggle.id}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
+                 class="toggle-icon ${toggle.isOpen ? 'open' : ''}">
+              <path d="M9 18l6-6-6-6" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <input type="text" class="toggle-title" value="${escapedTitle}"
+                   data-toggle-id="${toggle.id}" />
+          </div>
+          <div class="toggle-content ${toggle.isOpen ? 'open' : ''}">
+            <textarea
+              data-toggle-id="${toggle.id}"
+              placeholder="Start writing..."
+            >${escapedContent}</textarea>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    this.togglesContainer.innerHTML = togglesHtml;
     this.attachToggleEventListeners();
+
+    if (isUndoRedo) {
+      requestAnimationFrame(() => {
+        this.restoreEditorState();
+      });
+    }
   }
 
   attachToggleEventListeners() {
@@ -259,4 +340,14 @@ export class UIManager {
       });
     });
   }
+
+  escapeHtml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
+}
