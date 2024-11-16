@@ -228,7 +228,7 @@ export class UIManager {
           <textarea
             data-toggle-id="${toggle.id}"
             placeholder="Start writing..."
-            style="height: 250px;"
+            style="height: 300px;"
           >${toggle.content}</textarea>
         </div>
       </div>
