@@ -326,44 +326,9 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
-      let resizeTimeout;
       textarea.addEventListener('input', (e) => {
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
-        
-        if (resizeTimeout) {
-          cancelAnimationFrame(resizeTimeout);
-        }
-        
-        resizeTimeout = requestAnimationFrame(() => {
-          this.autoResizeTextarea(textarea);
-        });
       });
-
-      // Initial resize
-      this.autoResizeTextarea(textarea);
     });
   }
-
-autoResizeTextarea(textarea) {
-  const editorContent = document.querySelector('.editor-content');
-
-  // Lock the current scroll position of the container
-  const currentScrollTop = editorContent.scrollTop;
-
-  // Save caret position in the textarea
-  const selectionStart = textarea.selectionStart;
-  const selectionEnd = textarea.selectionEnd;
-
-  // Temporarily set height to auto to measure the scroll height correctly
-  textarea.style.height = 'auto';
-  const newHeight = textarea.scrollHeight; // Capture the required height
-  textarea.style.height = `${newHeight}px`; // Set to new height
-
-  // Restore caret position to avoid any jumps
-  textarea.selectionStart = selectionStart;
-  textarea.selectionEnd = selectionEnd;
-
-  // Restore the scroll position of the editor container
-  editorContent.scrollTop = currentScrollTop;
-}
-}
+    }
