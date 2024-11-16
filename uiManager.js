@@ -5,8 +5,6 @@ export class UIManager {
     this.noteManager = noteManager;
     this.currentNote = null;
     this.autoSaveTimeout = null;
-    this.lastScrollPositions = new Map();
-    this.lastCursorPositions = new Map();
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -37,6 +35,7 @@ export class UIManager {
     this.searchInput.addEventListener('input', () => this.filterNotes());
     this.noteTitle.addEventListener('input', (e) => this.handleNoteChange(e));
 
+    // Add keyboard shortcuts for undo/redo
     document.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -57,40 +56,6 @@ export class UIManager {
 
   initialize() {
     this.renderNotesList();
-  }
-
-  saveScrollAndCursorPositions() {
-    this.lastScrollPositions.clear();
-    this.lastCursorPositions.clear();
-    
-    document.querySelectorAll('.toggle-content textarea').forEach(textarea => {
-      const toggleId = parseInt(textarea.dataset.toggleId);
-      this.lastScrollPositions.set(toggleId, {
-        scrollTop: textarea.scrollTop,
-        scrollLeft: textarea.scrollLeft
-      });
-      this.lastCursorPositions.set(toggleId, {
-        start: textarea.selectionStart,
-        end: textarea.selectionEnd
-      });
-    });
-  }
-
-  restoreScrollAndCursorPositions() {
-    document.querySelectorAll('.toggle-content textarea').forEach(textarea => {
-      const toggleId = parseInt(textarea.dataset.toggleId);
-      const scrollPos = this.lastScrollPositions.get(toggleId);
-      const cursorPos = this.lastCursorPositions.get(toggleId);
-      
-      if (scrollPos) {
-        textarea.scrollTop = scrollPos.scrollTop;
-        textarea.scrollLeft = scrollPos.scrollLeft;
-      }
-      
-      if (cursorPos) {
-        textarea.setSelectionRange(cursorPos.start, cursorPos.end);
-      }
-    });
   }
 
   createNewNote() {
@@ -145,24 +110,20 @@ export class UIManager {
   }
 
   handleUndo() {
-    this.saveScrollAndCursorPositions();
     const previousState = this.history.undo(this.currentNote);
     if (previousState) {
       this.currentNote = previousState;
       this.noteManager.updateNote(this.currentNote);
       this.renderEditor();
-      this.restoreScrollAndCursorPositions();
     }
   }
 
   handleRedo() {
-    this.saveScrollAndCursorPositions();
     const nextState = this.history.redo(this.currentNote);
     if (nextState) {
       this.currentNote = nextState;
       this.noteManager.updateNote(this.currentNote);
       this.renderEditor();
-      this.restoreScrollAndCursorPositions();
     }
   }
 
@@ -229,15 +190,37 @@ export class UIManager {
   renderNotesList(searchTerm = '') {
     const filteredNotes = this.noteManager.getNotes(searchTerm);
     
-    this.notesList.innerHTML = filteredNotes.length ? filteredNotes.map(note => `
-      <div class="note-card" data-note-id="${note.id}">
-        <h2>${note.title || 'Untitled Note'}</h2>
-        <p>${note.toggles.map(t => t.content).join(' ').slice(0, 150) || 'No content'}</p>
-        <div class="note-meta">
-          Last updated: ${new Date(note.updated).toLocaleDateString()}
-        </div>
-      </div>
-    `).join('') : '<p class="empty-state">No notes found</p>';
+    const notesHTML = filteredNotes.length 
+      ? filteredNotes.map(note => {
+          const card = document.createElement('div');
+          card.className = 'note-card';
+          card.dataset.noteId = note.id;
+          
+          const title = document.createElement('h2');
+          title.textContent = note.title || 'Untitled Note';
+          
+          const content = document.createElement('p');
+          content.textContent = note.toggles.map(t => t.content).join(' ').slice(0, 150) || 'No content';
+          
+          const meta = document.createElement('div');
+          meta.className = 'note-meta';
+          meta.textContent = `Last updated: ${new Date(note.updated).toLocaleDateString()}`;
+          
+          card.appendChild(title);
+          card.appendChild(content);
+          card.appendChild(meta);
+          
+          return card;
+        })
+      : [document.createElement('p')];
+    
+    if (!filteredNotes.length) {
+      notesHTML[0].className = 'empty-state';
+      notesHTML[0].textContent = 'No notes found';
+    }
+    
+    this.notesList.innerHTML = '';
+    notesHTML.forEach(element => this.notesList.appendChild(element));
 
     document.querySelectorAll('.note-card').forEach(card => {
       card.addEventListener('click', () => {
@@ -251,21 +234,25 @@ export class UIManager {
   renderEditor() {
     if (!this.currentNote) return;
 
-    this.saveScrollAndCursorPositions();
-    
     this.noteTitle.value = this.currentNote.title;
     
+    // Create a document fragment to build the content
     const fragment = document.createDocumentFragment();
+    
+    // Clear existing content
     this.togglesContainer.innerHTML = '';
     
+    // Create and append toggle sections one by one
     this.currentNote.toggles.forEach(toggle => {
       const toggleSection = document.createElement('div');
       toggleSection.className = 'toggle-section';
       
+      // Create toggle header
       const toggleHeader = document.createElement('div');
       toggleHeader.className = 'toggle-header';
       toggleHeader.dataset.toggleId = toggle.id;
       
+      // Create toggle icon
       const toggleIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       toggleIcon.setAttribute('width', '20');
       toggleIcon.setAttribute('height', '20');
@@ -280,12 +267,14 @@ export class UIManager {
       path.setAttribute('stroke-linecap', 'round');
       toggleIcon.appendChild(path);
       
+      // Create title input
       const titleInput = document.createElement('input');
       titleInput.type = 'text';
       titleInput.className = 'toggle-title';
       titleInput.value = toggle.title;
       titleInput.dataset.toggleId = toggle.id;
       
+      // Create content area
       const contentDiv = document.createElement('div');
       contentDiv.className = `toggle-content ${toggle.isOpen ? 'open' : ''}`;
       
@@ -295,6 +284,7 @@ export class UIManager {
       textarea.style.height = '300px';
       textarea.value = toggle.content;
       
+      // Assemble the toggle section
       toggleHeader.appendChild(toggleIcon);
       toggleHeader.appendChild(titleInput);
       contentDiv.appendChild(textarea);
@@ -304,12 +294,11 @@ export class UIManager {
       fragment.appendChild(toggleSection);
     });
     
+    // Append all content at once
     this.togglesContainer.appendChild(fragment);
-    this.attachToggleEventListeners();
     
-    requestAnimationFrame(() => {
-      this.restoreScrollAndCursorPositions();
-    });
+    // Attach event listeners
+    this.attachToggleEventListeners();
   }
 
   attachToggleEventListeners() {
@@ -328,26 +317,10 @@ export class UIManager {
       input.addEventListener('click', (e) => e.stopPropagation());
     });
 
-    document.querySelectorAll('.toggle-content textarea').forEach(textarea => {
+    document.querySelectorAll('textarea').forEach(textarea => {
       textarea.addEventListener('input', (e) => {
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
       });
-      
-      textarea.addEventListener('scroll', () => {
-        const toggleId = parseInt(textarea.dataset.toggleId);
-        this.lastScrollPositions.set(toggleId, {
-          scrollTop: textarea.scrollTop,
-          scrollLeft: textarea.scrollLeft
-        });
-      });
-
-      textarea.addEventListener('select', () => {
-        const toggleId = parseInt(textarea.dataset.toggleId);
-        this.lastCursorPositions.set(toggleId, {
-          start: textarea.selectionStart,
-          end: textarea.selectionEnd
-        });
-      });
     });
   }
-    }
+      }
