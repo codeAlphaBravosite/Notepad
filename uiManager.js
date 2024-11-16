@@ -355,7 +355,7 @@ autoResizeTextarea(textarea) {
   const selectionEnd = textarea.selectionEnd;
 
   // Set a fixed height (you can adjust this value)
-  const FIXED_HEIGHT = '300px';
+  const FIXED_HEIGHT = '400px';
   
   // Apply styles to make textarea scrollable but not expandable
   textarea.style.height = FIXED_HEIGHT;
