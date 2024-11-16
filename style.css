@@ -276,7 +276,7 @@ h1 {
 
 .toggle-content textarea {
   width: 100%;
-  min-height: 300px;
+  height: 300px;
   padding: 1.5rem;
   background: transparent;
   border: none;
@@ -285,8 +285,7 @@ h1 {
   line-height: 1.7;
   font-family: inherit;
   resize: none;
-  overflow: hidden;
-  height: auto;
+  overflow-y: auto;
   padding-bottom: 5rem;
 }
 
