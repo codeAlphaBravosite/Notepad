@@ -7,7 +7,6 @@ export class UIManager {
     this.autoSaveTimeout = null;
     this.lastKnownScrollPosition = 0;
     this.lastActiveToggleId = null;
-    this.lastCaretPosition = null;
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -115,70 +114,20 @@ export class UIManager {
   }
 
   handleUndo() {
-    this.saveEditorState();
-    
     const previousState = this.history.undo(this.currentNote);
     if (previousState) {
       this.currentNote = previousState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true);
+      this.renderEditor(false);
     }
   }
 
   handleRedo() {
-    this.saveEditorState();
-    
     const nextState = this.history.redo(this.currentNote);
     if (nextState) {
       this.currentNote = nextState;
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true);
-    }
-  }
-
-  saveEditorState() {
-    const editorContent = document.querySelector('.editor-content');
-    if (editorContent) {
-      this.lastKnownScrollPosition = editorContent.scrollTop;
-    }
-    
-    const activeElement = document.activeElement;
-    if (activeElement && activeElement.tagName === 'TEXTAREA') {
-      this.lastCaretPosition = {
-        start: activeElement.selectionStart,
-        end: activeElement.selectionEnd
-      };
-      
-      const toggleSection = activeElement.closest('.toggle-section');
-      if (toggleSection) {
-        const toggleHeader = toggleSection.querySelector('.toggle-header');
-        this.lastActiveToggleId = toggleHeader?.dataset.toggleId;
-      }
-    }
-  }
-
-  restoreEditorState() {
-    const editorContent = document.querySelector('.editor-content');
-    if (editorContent) {
-      editorContent.scrollTop = this.lastKnownScrollPosition;
-    }
-
-    if (this.lastActiveToggleId) {
-      const toggleElement = document.querySelector(`[data-toggle-id="${this.lastActiveToggleId}"]`);
-      const textarea = toggleElement?.closest('.toggle-section')?.querySelector('textarea');
-      if (textarea) {
-        textarea.focus();
-        
-        if (this.lastCaretPosition) {
-          textarea.setSelectionRange(
-            this.lastCaretPosition.start,
-            this.lastCaretPosition.end
-          );
-        } else {
-          const length = textarea.value.length;
-          textarea.setSelectionRange(length, length);
-        }
-      }
+      this.renderEditor(false);
     }
   }
 
@@ -197,7 +146,7 @@ export class UIManager {
     this.currentNote.toggles.push(newToggle);
     this.history.push(previousState);
     this.noteManager.updateNote(this.currentNote);
-    this.renderEditor();
+    this.renderEditor(false);
   }
 
   updateToggleTitle(toggleId, newTitle) {
@@ -233,7 +182,7 @@ export class UIManager {
       toggle.isOpen = !toggle.isOpen;
       this.history.push(previousState);
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor();
+      this.renderEditor(false);
     }
   }
 
@@ -275,12 +224,8 @@ export class UIManager {
     `;
   }
 
-  renderEditor(isUndoRedo = false) {
+  renderEditor(preserveState = false) {
     if (!this.currentNote) return;
-
-    if (!isUndoRedo) {
-      this.saveEditorState();
-    }
 
     this.noteTitle.value = this.escapeHtml(this.currentNote.title);
     
@@ -311,12 +256,6 @@ export class UIManager {
 
     this.togglesContainer.innerHTML = togglesHtml;
     this.attachToggleEventListeners();
-
-    if (isUndoRedo) {
-      requestAnimationFrame(() => {
-        this.restoreEditorState();
-      });
-    }
   }
 
   attachToggleEventListeners() {
@@ -351,4 +290,4 @@ export class UIManager {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
-    }
+        }
