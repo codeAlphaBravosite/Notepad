@@ -5,10 +5,7 @@ export class UIManager {
     this.noteManager = noteManager;
     this.currentNote = null;
     this.autoSaveTimeout = null;
-    this.lastKnownScrollPosition = 0;
     this.lastActiveToggleId = null;
-    this.lastCaretPosition = null;
-    this.scrollPositions = new Map(); // For storing scroll positions of textareas
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -114,7 +111,15 @@ export class UIManager {
   }
 
   handleUndo() {
-    this.saveEditorState();
+    // Save active toggle ID before undo
+    const activeElement = document.activeElement;
+    if (activeElement && activeElement.tagName === 'TEXTAREA') {
+      const toggleSection = activeElement.closest('.toggle-section');
+      if (toggleSection) {
+        const toggleHeader = toggleSection.querySelector('.toggle-header');
+        this.lastActiveToggleId = toggleHeader?.dataset.toggleId;
+      }
+    }
     
     const previousState = this.history.undo(this.currentNote);
     if (previousState) {
@@ -125,83 +130,21 @@ export class UIManager {
   }
 
   handleRedo() {
-    this.saveEditorState();
-    
-    const nextState = this.history.redo(this.currentNote);
-    if (nextState) {
-      this.currentNote = nextState;
-      this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true);
-    }
-  }
-
-  saveEditorState() {
-    // Save editor content scroll position
-    const editorContent = document.querySelector('.editor-content');
-    if (editorContent) {
-      this.lastKnownScrollPosition = editorContent.scrollTop;
-    }
-    
-    // Save individual textarea scroll positions
-    this.scrollPositions.clear();
-    document.querySelectorAll('textarea').forEach(textarea => {
-      const toggleId = parseInt(textarea.dataset.toggleId);
-      this.scrollPositions.set(toggleId, {
-        scrollTop: textarea.scrollTop,
-        scrollLeft: textarea.scrollLeft
-      });
-    });
-    
-    // Save active element and caret position
+    // Save active toggle ID before redo
     const activeElement = document.activeElement;
     if (activeElement && activeElement.tagName === 'TEXTAREA') {
-      this.lastCaretPosition = {
-        start: activeElement.selectionStart,
-        end: activeElement.selectionEnd
-      };
-      
       const toggleSection = activeElement.closest('.toggle-section');
       if (toggleSection) {
         const toggleHeader = toggleSection.querySelector('.toggle-header');
         this.lastActiveToggleId = toggleHeader?.dataset.toggleId;
       }
     }
-  }
-
-  restoreEditorState() {
-    // Restore editor content scroll position
-    const editorContent = document.querySelector('.editor-content');
-    if (editorContent) {
-      requestAnimationFrame(() => {
-        editorContent.scrollTop = this.lastKnownScrollPosition;
-      });
-    }
-
-    // Restore individual textarea scroll positions
-    this.scrollPositions.forEach((scrollPos, toggleId) => {
-      const textarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
-      if (textarea) {
-        requestAnimationFrame(() => {
-          textarea.scrollTop = scrollPos.scrollTop;
-          textarea.scrollLeft = scrollPos.scrollLeft;
-        });
-      }
-    });
-
-    // Restore focus and caret position
-    if (this.lastActiveToggleId) {
-      const toggleElement = document.querySelector(`[data-toggle-id="${this.lastActiveToggleId}"]`);
-      const textarea = toggleElement?.closest('.toggle-section')?.querySelector('textarea');
-      if (textarea) {
-        textarea.focus();
-        
-        if (this.lastCaretPosition) {
-          textarea.setSelectionRange(
-            this.lastCaretPosition.start,
-            this.lastCaretPosition.end
-          );
-        }
-      }
+    
+    const nextState = this.history.redo(this.currentNote);
+    if (nextState) {
+      this.currentNote = nextState;
+      this.noteManager.updateNote(this.currentNote);
+      this.renderEditor(true);
     }
   }
 
@@ -290,10 +233,6 @@ export class UIManager {
   renderEditor(isUndoRedo = false) {
     if (!this.currentNote) return;
 
-    if (!isUndoRedo) {
-      this.saveEditorState();
-    }
-
     this.noteTitle.value = this.currentNote.title;
     
     this.togglesContainer.innerHTML = this.currentNote.toggles.map(toggle => `
@@ -310,6 +249,7 @@ export class UIManager {
           <textarea
             data-toggle-id="${toggle.id}"
             placeholder="Start writing..."
+            style="height: 250px; resize: none;"
           >${toggle.content}</textarea>
         </div>
       </div>
@@ -317,10 +257,13 @@ export class UIManager {
 
     this.attachToggleEventListeners();
 
-    if (isUndoRedo) {
-      requestAnimationFrame(() => {
-        this.restoreEditorState();
-      });
+    // Restore focus after undo/redo
+    if (isUndoRedo && this.lastActiveToggleId) {
+      const toggleElement = document.querySelector(`[data-toggle-id="${this.lastActiveToggleId}"]`);
+      const textarea = toggleElement?.closest('.toggle-section')?.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+      }
     }
   }
 
@@ -341,35 +284,9 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
-      let resizeTimeout;
       textarea.addEventListener('input', (e) => {
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
-        
-        if (resizeTimeout) {
-          cancelAnimationFrame(resizeTimeout);
-        }
-        
-        resizeTimeout = requestAnimationFrame(() => {
-          this.autoResizeTextarea(textarea);
-        });
       });
-
-      // Initial resize
-      this.autoResizeTextarea(textarea);
     });
   }
-
-  autoResizeTextarea(textarea) {
-    const editorContent = document.querySelector('.editor-content');
-    const currentScrollTop = editorContent.scrollTop;
-    const textareaScrollTop = textarea.scrollTop;
-    
-    // Set height to auto to get the real scroll height
-    textarea.style.height = 'auto';
-    textarea.style.height = textarea.scrollHeight + 'px';
-    
-    // Restore scroll positions
-    editorContent.scrollTop = currentScrollTop;
-    textarea.scrollTop = textareaScrollTop;
-  }
-}
+        }
