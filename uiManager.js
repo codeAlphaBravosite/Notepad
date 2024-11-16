@@ -149,7 +149,8 @@ export class UIManager {
     if (activeElement && activeElement.tagName === 'TEXTAREA') {
       this.lastCaretPosition = {
         start: activeElement.selectionStart,
-        end: activeElement.selectionEnd
+        end: activeElement.selectionEnd,
+        scrollTop: activeElement.scrollTop  // Added textarea scroll position
       };
       
       const toggleSection = activeElement.closest('.toggle-section');
@@ -178,6 +179,8 @@ export class UIManager {
             this.lastCaretPosition.start,
             this.lastCaretPosition.end
           );
+          // Restore textarea scroll position
+          textarea.scrollTop = this.lastCaretPosition.scrollTop;
         } else {
           // If no caret position saved, move to end
           const length = textarea.value.length;
@@ -327,22 +330,8 @@ export class UIManager {
 
     document.querySelectorAll('textarea').forEach(textarea => {
       textarea.addEventListener('input', (e) => {
-        const editorContent = document.querySelector('.editor-content');
-        const currentScrollTop = editorContent.scrollTop;
-        
-        // Save caret position
-        const selectionStart = textarea.selectionStart;
-        const selectionEnd = textarea.selectionEnd;
-        
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
-        
-        // Restore caret position
-        textarea.selectionStart = selectionStart;
-        textarea.selectionEnd = selectionEnd;
-        
-        // Restore scroll position
-        editorContent.scrollTop = currentScrollTop;
       });
     });
   }
-                                          }
+    }
