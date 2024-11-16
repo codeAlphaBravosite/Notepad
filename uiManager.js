@@ -355,7 +355,7 @@ autoResizeTextarea(textarea) {
   const selectionEnd = textarea.selectionEnd;
 
   // Temporarily set height to auto to measure the scroll height correctly
-  textarea.style.height = 'auto';
+  textarea.style.height = '300px';
   const newHeight = textarea.scrollHeight; // Capture the required height
   textarea.style.height = `${newHeight}px`; // Set to new height
 
