@@ -245,7 +245,6 @@ export class UIManager {
           </div>
           <div class="toggle-content ${toggle.isOpen ? 'open' : ''}">
             <textarea
-              class="fixed-height-textarea"
               data-toggle-id="${toggle.id}"
               placeholder="Start writing..."
             >${escapedContent}</textarea>
