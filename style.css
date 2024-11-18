@@ -30,6 +30,7 @@
 html, body {
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -159,6 +160,7 @@ h1 {
   flex-direction: column;
   z-index: 100;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .editor-toolbar {
@@ -209,6 +211,8 @@ h1 {
   width: 100%;
   max-width: var(--content-width);
   margin: 0 auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 #note-title {
@@ -228,6 +232,8 @@ h1 {
   border-radius: 0.5rem;
   width: 100%;
   background-color: var(--bg-color);
+  position: relative; /* Add this */
+  transform: translateZ(0);
 }
 
 .toggle-header {
@@ -237,6 +243,7 @@ h1 {
   cursor: pointer;
   background-color: var(--hover-color);
   user-select: none;
+  -webkit-user-select: none;
   border-radius: 0.5rem;
 }
 
@@ -267,6 +274,8 @@ h1 {
 
 .toggle-content {
   display: none;
+  position: relative; /* Add this */
+  transform: translateZ(0);
 }
 
 .toggle-content.open {
@@ -289,10 +298,20 @@ h1 {
   font-family: inherit;
   resize: none;
   overflow-y: auto;
-  scroll-behavior: auto !important;
-  overflow-anchor: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  position: relative;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: scroll-position;
+  scroll-behavior: auto !important;
+  overflow-anchor: none;
+}
+
+.toggle-content textarea,
+.editor-content,
+#notes-list {
+  -webkit-overflow-scrolling: touch;
 }
 
 .toggle-content textarea:focus,
@@ -354,6 +373,9 @@ h1 {
     font-size: 1.6rem;
     padding: 1.25rem;
     padding-bottom: 5rem;
+    will-change: transform;
+    transform: translateZ(0);
+    -webkit-font-smoothing: antialiased;
   }
   
   .toggle-section {
@@ -397,7 +419,29 @@ h1 {
   input, textarea {
     font-size: 20px !important;
   }
+
+  .toggle-section,
+  .toggle-content,
+  .editor-content {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
   }
+
+    .editor-content,
+  .toggle-content textarea {
+    overscroll-behavior-y: contain;
+    overflow-y: auto;
+  }
+  
+  /* Improve touch response */
+  .toggle-header,
+  .toolbar-btn,
+  .note-card {
+    touch-action: manipulation;
+  }
+
+}
 
 
 /* Add these at the end of your style.css file */
@@ -419,6 +463,13 @@ button:focus,
 .search-container,
 .toggle-section {
   -webkit-tap-highlight-color: transparent;
+}
+
+.preserve-scroll {
+  overflow-anchor: none !important;
+  scroll-behavior: auto !important;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* Ensure text selection only in editable areas */
