@@ -8,6 +8,7 @@ export class UIManager {
     this.lastKnownScrollPosition = 0;
     this.lastActiveToggleId = null;
     this.lastCaretPosition = null;
+    this.savedToggleStates = null;
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -83,11 +84,19 @@ export class UIManager {
   }
 
   deleteCurrentNote() {
-    if (!this.currentNote) return;
+    if (!this.currentNote) {
+      console.warn('Attempted to delete non-existent note');
+      return;
+    }
     
     if (confirm('Are you sure you want to delete this note?')) {
-      this.noteManager.deleteNote(this.currentNote.id);
-      this.closeEditor();
+      try {
+        this.noteManager.deleteNote(this.currentNote.id);
+        this.closeEditor();
+      } catch (error) {
+        console.error('Failed to delete note:', error);
+        // Handle error appropriately
+      }
     }
   }
 
@@ -137,53 +146,74 @@ export class UIManager {
   }
 
   saveEditorState() {
+    // Save all toggle states
+    this.savedToggleStates = this.currentNote.toggles.map(toggle => {
+      const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
+      if (textarea) {
+        return {
+          id: toggle.id,
+          scrollTop: textarea.scrollTop,
+          scrollHeight: textarea.scrollHeight,
+          selectionStart: textarea.selectionStart,
+          selectionEnd: textarea.selectionEnd,
+          isFocused: document.activeElement === textarea
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
+    // Save editor content scroll position
     const editorContent = document.querySelector('.editor-content');
     if (editorContent) {
       this.lastKnownScrollPosition = editorContent.scrollTop;
     }
-    
-    const activeElement = document.activeElement;
-    if (activeElement && activeElement.tagName === 'TEXTAREA') {
-      this.lastCaretPosition = {
-        start: activeElement.selectionStart,
-        end: activeElement.selectionEnd
-      };
-      
-      const toggleSection = activeElement.closest('.toggle-section');
-      if (toggleSection) {
-        const toggleHeader = toggleSection.querySelector('.toggle-header');
-        this.lastActiveToggleId = toggleHeader?.dataset.toggleId;
-      }
-    }
   }
 
   restoreEditorState() {
-    const editorContent = document.querySelector('.editor-content');
-    if (editorContent) {
-      editorContent.scrollTop = this.lastKnownScrollPosition;
-    }
+    // First pass: restore scroll positions and selection
+    requestAnimationFrame(() => {
+      // Restore individual toggle states
+      if (this.savedToggleStates) {
+        this.savedToggleStates.forEach(state => {
+          const textarea = document.querySelector(`textarea[data-toggle-id="${state.id}"]`);
+          if (textarea) {
+            // Restore scroll position
+            textarea.scrollTop = state.scrollTop;
 
-    if (this.lastActiveToggleId) {
-      const toggleElement = document.querySelector(`[data-toggle-id="${this.lastActiveToggleId}"]`);
-      const textarea = toggleElement?.closest('.toggle-section')?.querySelector('textarea');
-      if (textarea) {
-        textarea.focus();
-        
-        if (this.lastCaretPosition) {
-          textarea.setSelectionRange(
-            this.lastCaretPosition.start,
-            this.lastCaretPosition.end
-          );
-        } else {
-          const length = textarea.value.length;
-          textarea.setSelectionRange(length, length);
-        }
+            // Restore selection
+            if (state.isFocused) {
+              textarea.focus();
+              textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
+            }
+          }
+        });
       }
-    }
+
+      // Restore editor content scroll
+      const editorContent = document.querySelector('.editor-content');
+      if (editorContent) {
+        editorContent.scrollTop = this.lastKnownScrollPosition;
+      }
+
+      // Second pass: double-check scroll positions after a brief delay
+      // This ensures proper restoration even after browser reflow
+      setTimeout(() => {
+        if (this.savedToggleStates) {
+          this.savedToggleStates.forEach(state => {
+            const textarea = document.querySelector(`textarea[data-toggle-id="${state.id}"]`);
+            if (textarea && textarea.scrollTop !== state.scrollTop) {
+              textarea.scrollTop = state.scrollTop;
+            }
+          });
+        }
+      }, 50);
+    });
   }
 
   addNewToggle() {
     if (!this.currentNote) return;
+    
+    this.saveEditorState();
     
     const previousState = JSON.parse(JSON.stringify(this.currentNote));
     
@@ -197,7 +227,7 @@ export class UIManager {
     this.currentNote.toggles.push(newToggle);
     this.history.push(previousState);
     this.noteManager.updateNote(this.currentNote);
-    this.renderEditor();
+    this.renderEditor(true);
   }
 
   updateToggleTitle(toggleId, newTitle) {
@@ -233,7 +263,7 @@ export class UIManager {
       toggle.isOpen = !toggle.isOpen;
       this.history.push(previousState);
       this.noteManager.updateNote(this.currentNote);
-      this.renderEditor();
+      this.renderEditor(true);
     }
   }
 
@@ -244,12 +274,24 @@ export class UIManager {
 
   renderNotesList(searchTerm = '') {
     const filteredNotes = this.noteManager.getNotes(searchTerm);
-    const notesHtml = filteredNotes.length ? 
-      filteredNotes.map(note => this.createNoteCardHtml(note)).join('') : 
-      '<p class="empty-state">No notes found</p>';
+    const fragment = document.createDocumentFragment();
     
-    this.notesList.innerHTML = notesHtml;
+    if (filteredNotes.length) {
+      filteredNotes.forEach(note => {
+        const noteElement = this.createNoteCardElement(note);
+        fragment.appendChild(noteElement);
+      });
+    } else {
+      const emptyState = document.createElement('p');
+      emptyState.className = 'empty-state';
+      emptyState.textContent = 'No notes found';
+      fragment.appendChild(emptyState);
+    }
+    
+    this.notesList.innerHTML = '';
+    this.notesList.appendChild(fragment);
 
+    // Attach event listeners
     document.querySelectorAll('.note-card').forEach(card => {
       card.addEventListener('click', () => {
         const noteId = parseInt(card.dataset.noteId);
@@ -259,26 +301,30 @@ export class UIManager {
     });
   }
 
-  createNoteCardHtml(note) {
+  createNoteCardElement(note) {
+    const card = document.createElement('div');
+    card.className = 'note-card';
+    card.dataset.noteId = note.id;
+
     const title = this.escapeHtml(note.title) || 'Untitled Note';
     const content = this.escapeHtml(note.toggles.map(t => t.content).join(' ').slice(0, 150)) || 'No content';
     const date = new Date(note.updated).toLocaleDateString();
-    
-    return `
-      <div class="note-card" data-note-id="${note.id}">
-        <h2>${title}</h2>
-        <p>${content}</p>
-        <div class="note-meta">
-          Last updated: ${date}
-        </div>
+
+    card.innerHTML = `
+      <h2>${title}</h2>
+      <p>${content}</p>
+      <div class="note-meta">
+        Last updated: ${date}
       </div>
     `;
+
+    return card;
   }
 
-  renderEditor(isUndoRedo = false) {
+  renderEditor(shouldRestoreState = false) {
     if (!this.currentNote) return;
 
-    if (!isUndoRedo) {
+    if (!shouldRestoreState) {
       this.saveEditorState();
     }
 
@@ -302,6 +348,7 @@ export class UIManager {
             <textarea
               data-toggle-id="${toggle.id}"
               placeholder="Start writing..."
+              style="min-height: 100px; resize: vertical;"
             >${escapedContent}</textarea>
           </div>
         </div>
@@ -311,10 +358,8 @@ export class UIManager {
     this.togglesContainer.innerHTML = togglesHtml;
     this.attachToggleEventListeners();
 
-    if (isUndoRedo) {
-      requestAnimationFrame(() => {
-        this.restoreEditorState();
-      });
+    if (shouldRestoreState) {
+      this.restoreEditorState();
     }
   }
 
@@ -335,19 +380,31 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
+      // Auto-resize textarea as content changes
+      const autoResize = () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+      };
+
       textarea.addEventListener('input', (e) => {
+        autoResize();
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
+      });
+
+      // Initial resize
+      autoResize();
+
+      // Handle focus events to save last active state
+      textarea.addEventListener('focus', () => {
+        this.lastActiveToggleId = parseInt(textarea.dataset.toggleId);
       });
     });
   }
 
   escapeHtml(unsafe) {
     if (!unsafe) return '';
-    return unsafe
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    const div = document.createElement('div');
+    div.textContent = unsafe;
+    return div.innerHTML;
   }
     }
