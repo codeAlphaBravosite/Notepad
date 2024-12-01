@@ -83,20 +83,27 @@ export class UIManager {
     this.renderNotesList();
   }
 
-  deleteCurrentNote() {
+  async deleteCurrentNote() {
     if (!this.currentNote) {
-      console.warn('Attempted to delete non-existent note');
-      return;
+        console.warn('Attempted to delete non-existent note');
+        return;
     }
-    
-    if (confirm('Are you sure you want to delete this note?')) {
-      try {
-        this.noteManager.deleteNote(this.currentNote.id);
-        this.closeEditor();
-      } catch (error) {
-        console.error('Failed to delete note:', error);
-        // Handle error appropriately
-      }
+
+    const confirmed = await dialog.confirm({
+        title: 'Delete Note',
+        message: 'Are you sure?',
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+    });
+
+    if (confirmed) {
+        try {
+            this.noteManager.deleteNote(this.currentNote.id);
+            this.closeEditor();
+        } catch (error) {
+            console.error('Failed to delete note:', error);
+            // Additional error handling can be added here
+        }
     }
   }
 
