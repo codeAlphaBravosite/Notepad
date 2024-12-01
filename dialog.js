@@ -26,7 +26,7 @@ export class DialogManager {
       }
 
       .dialog-container {
-        background: #2c3e50; /* Dark background */
+        background: #f8fafc; /* Dark background */
         border-radius: 8px;
         padding: 24px;
         max-width: 400px;
