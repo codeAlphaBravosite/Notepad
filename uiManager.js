@@ -1,4 +1,6 @@
 import { HistoryManager } from './history.js';
+import { DialogManager } from './dialog.js';
+const dialog = new DialogManager();
 
 export class UIManager {
   constructor(noteManager) {
