@@ -237,7 +237,7 @@ h1 {
 }
 
 .toggle-section:last-child {
-  margin-bottom: 3rem;
+  margin-bottom: 3.5rem;
 }
 
 .toggle-header {
@@ -336,11 +336,13 @@ h1 {
   opacity: 0.6;
 }
 
-/* Scrollbar Styling */
+
+/* Scrollbar Styling
 #notes-list::-webkit-scrollbar,
 .editor-content::-webkit-scrollbar {
-  width: 1px;
+  width: 2px;
 }
+*/
 
 #notes-list::-webkit-scrollbar-track,
 .editor-content::-webkit-scrollbar-track {
