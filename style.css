@@ -236,6 +236,10 @@ h1 {
   transform: translateZ(0);
 }
 
+.toggle-section:last-child {
+  margin-bottom: 3rem;
+}
+
 .toggle-header {
   display: flex;
   align-items: center;
@@ -247,9 +251,11 @@ h1 {
   border-radius: 0.5rem;
 }
 
+/*
 .toggle-header:hover {
   opacity: 0.9;
 }
+*/
 
 .toggle-icon {
   transition: transform 0.2s ease;
