@@ -524,7 +524,6 @@ export class UIManager {
             textarea.scrollTop = 0;
         });
     }
-}
                     
   filterNotes() {
     const searchTerm = this.searchInput.value.toLowerCase();
