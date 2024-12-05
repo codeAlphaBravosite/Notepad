@@ -333,7 +333,7 @@ h1 {
 /* Scrollbar Styling */
 #notes-list::-webkit-scrollbar,
 .editor-content::-webkit-scrollbar {
-  width: 3px;
+  width: 1px;
 }
 
 #notes-list::-webkit-scrollbar-track,
