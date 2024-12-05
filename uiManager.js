@@ -333,45 +333,38 @@ export class UIManager {
 
   toggleSection(toggleId) {
     if (!this.currentNote) return;
-    
-    // Store the main editor content scroll position
+
     const editorContent = document.querySelector('.editor-content');
     const editorScrollTop = editorContent ? editorContent.scrollTop : 0;
-    
-    // Store scroll positions and selection states of all textareas before toggling
+
     const scrollPositions = new Map();
     this.currentNote.toggles.forEach(toggle => {
         const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
         if (textarea) {
             scrollPositions.set(toggle.id, {
                 scrollTop: textarea.scrollTop,
-                scrollHeight: textarea.scrollHeight,
                 selectionStart: textarea.selectionStart,
                 selectionEnd: textarea.selectionEnd,
                 isFocused: document.activeElement === textarea
             });
         }
     });
-    
+
     const previousState = JSON.parse(JSON.stringify(this.currentNote));
     const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
-    
+
     if (toggle) {
         toggle.isOpen = !toggle.isOpen;
         this.history.push(previousState);
         this.noteManager.updateNote(this.currentNote);
-        
-        // Render without restoring state since we'll handle it manually
+
         this.renderEditor(false);
-        
-        // Restore scroll positions after toggle
+
         requestAnimationFrame(() => {
-            // Restore main editor scroll position first
             if (editorContent) {
                 editorContent.scrollTop = editorScrollTop;
             }
-            
-            // Then restore individual textarea states
+
             scrollPositions.forEach((state, id) => {
                 const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
                 if (textarea) {
@@ -382,15 +375,12 @@ export class UIManager {
                     }
                 }
             });
-            
-            // Double-check scroll positions after a brief delay
+
             setTimeout(() => {
-                // Recheck main editor scroll position
                 if (editorContent && editorContent.scrollTop !== editorScrollTop) {
                     editorContent.scrollTop = editorScrollTop;
                 }
-                
-                // Recheck textarea scroll positions
+
                 scrollPositions.forEach((state, id) => {
                     const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
                     if (textarea && textarea.scrollTop !== state.scrollTop) {
@@ -401,7 +391,7 @@ export class UIManager {
         });
     }
   }
-                    
+                      
   filterNotes() {
     const searchTerm = this.searchInput.value.toLowerCase();
     this.renderNotesList(searchTerm);
