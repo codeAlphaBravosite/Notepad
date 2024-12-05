@@ -334,16 +334,52 @@ export class UIManager {
   toggleSection(toggleId) {
     if (!this.currentNote) return;
     
+    // Store scroll positions of all textareas before toggling
+    const scrollPositions = new Map();
+    this.currentNote.toggles.forEach(toggle => {
+        const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
+        if (textarea) {
+            scrollPositions.set(toggle.id, {
+                scrollTop: textarea.scrollTop,
+                scrollHeight: textarea.scrollHeight,
+                selectionStart: textarea.selectionStart,
+                selectionEnd: textarea.selectionEnd
+            });
+        }
+    });
+    
     const previousState = JSON.parse(JSON.stringify(this.currentNote));
     const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
+    
     if (toggle) {
-      toggle.isOpen = !toggle.isOpen;
-      this.history.push(previousState);
-      this.noteManager.updateNote(this.currentNote);
-      this.renderEditor(true);
+        toggle.isOpen = !toggle.isOpen;
+        this.history.push(previousState);
+        this.noteManager.updateNote(this.currentNote);
+        this.renderEditor(true);
+        
+        // Restore scroll positions after toggle
+        requestAnimationFrame(() => {
+            scrollPositions.forEach((state, id) => {
+                const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
+                if (textarea) {
+                    textarea.scrollTop = state.scrollTop;
+                    textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
+                }
+            });
+            
+            // Double-check scroll positions after a brief delay
+            setTimeout(() => {
+                scrollPositions.forEach((state, id) => {
+                    const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
+                    if (textarea && textarea.scrollTop !== state.scrollTop) {
+                        textarea.scrollTop = state.scrollTop;
+                    }
+                });
+            }, 50);
+        });
     }
-  }
-
+}
+  
   filterNotes() {
     const searchTerm = this.searchInput.value.toLowerCase();
     this.renderNotesList(searchTerm);
