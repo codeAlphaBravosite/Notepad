@@ -1,5 +1,7 @@
 import { HistoryManager } from './history.js';
 import { DialogManager } from './dialog.js';
+import { StorageManager } from './storage.js';
+
 const dialog = new DialogManager();
 
 export class UIManager {
@@ -11,6 +13,7 @@ export class UIManager {
     this.lastActiveToggleId = null;
     this.lastCaretPosition = null;
     this.savedToggleStates = null;
+    this.editorStateKey = 'editor-states';
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -41,7 +44,6 @@ export class UIManager {
     this.searchInput.addEventListener('input', () => this.filterNotes());
     this.noteTitle.addEventListener('input', (e) => this.handleNoteChange(e));
 
-    // Add keyboard shortcuts for undo/redo
     document.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -75,14 +77,92 @@ export class UIManager {
     document.getElementById('notes-list-view').classList.add('hidden');
     this.history.clear();
     this.renderEditor();
+    this.loadEditorStateFromStorage();
   }
 
   closeEditor() {
+    this.saveEditorStateToStorage();
     this.editor.classList.add('hidden');
     document.getElementById('notes-list-view').classList.remove('hidden');
     this.currentNote = null;
     this.history.clear();
     this.renderNotesList();
+  }
+
+  saveEditorStateToStorage() {
+    if (!this.currentNote) return;
+    
+    const states = StorageManager.load(this.editorStateKey, {});
+    
+    const toggleStates = this.currentNote.toggles.map(toggle => {
+        const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
+        if (textarea) {
+            return {
+                id: toggle.id,
+                scrollTop: textarea.scrollTop,
+                scrollHeight: textarea.scrollHeight,
+                selectionStart: textarea.selectionStart,
+                selectionEnd: textarea.selectionEnd
+            };
+        }
+        return null;
+    }).filter(Boolean);
+
+    const editorContent = document.querySelector('.editor-content');
+    const editorScrollTop = editorContent ? editorContent.scrollTop : 0;
+
+    states[this.currentNote.id] = {
+        toggleStates,
+        editorScrollTop,
+        lastActiveToggleId: this.lastActiveToggleId,
+        timestamp: Date.now()
+    };
+
+    StorageManager.save(this.editorStateKey, states);
+  }
+
+  loadEditorStateFromStorage() {
+    if (!this.currentNote) return;
+    
+    const states = StorageManager.load(this.editorStateKey, {});
+    const savedState = states[this.currentNote.id];
+    
+    if (!savedState) return;
+
+    requestAnimationFrame(() => {
+        if (savedState.toggleStates) {
+            savedState.toggleStates.forEach(state => {
+                const textarea = document.querySelector(`textarea[data-toggle-id="${state.id}"]`);
+                if (textarea) {
+                    textarea.scrollTop = state.scrollTop;
+                    textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
+                }
+            });
+        }
+
+        const editorContent = document.querySelector('.editor-content');
+        if (editorContent && savedState.editorScrollTop) {
+            editorContent.scrollTop = savedState.editorScrollTop;
+        }
+
+        if (savedState.lastActiveToggleId) {
+            const textarea = document.querySelector(`textarea[data-toggle-id="${savedState.lastActiveToggleId}"]`);
+            if (textarea) {
+                textarea.focus();
+            }
+        }
+
+        setTimeout(() => {
+            if (savedState.toggleStates) {
+                savedState.toggleStates.forEach(state => {
+                    const textarea = document.querySelector(`textarea[data-toggle-id="${state.id}"]`);
+                    if (textarea && textarea.scrollTop !== state.scrollTop) {
+                        textarea.scrollTop = state.scrollTop;
+                    }
+                });
+            }
+        }, 50);
+    });
   }
 
   async deleteCurrentNote() {
@@ -104,7 +184,6 @@ export class UIManager {
             this.closeEditor();
         } catch (error) {
             console.error('Failed to delete note:', error);
-            // Additional error handling can be added here
         }
     }
   }
@@ -116,7 +195,6 @@ export class UIManager {
       clearTimeout(this.autoSaveTimeout);
     }
     
-    // Store the current state before making changes
     const previousState = JSON.parse(JSON.stringify(this.currentNote));
     
     if (e.target === this.noteTitle) {
@@ -124,7 +202,6 @@ export class UIManager {
     }
     
     this.autoSaveTimeout = setTimeout(() => {
-      // Only push to history if there are actual changes
       if (JSON.stringify(previousState) !== JSON.stringify(this.currentNote)) {
         this.history.push(previousState);
         this.noteManager.updateNote(this.currentNote);
@@ -155,7 +232,6 @@ export class UIManager {
   }
 
   saveEditorState() {
-    // Save all toggle states
     this.savedToggleStates = this.currentNote.toggles.map(toggle => {
       const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
       if (textarea) {
@@ -171,7 +247,6 @@ export class UIManager {
       return null;
     }).filter(Boolean);
 
-    // Save editor content scroll position
     const editorContent = document.querySelector('.editor-content');
     if (editorContent) {
       this.lastKnownScrollPosition = editorContent.scrollTop;
@@ -179,17 +254,13 @@ export class UIManager {
   }
 
   restoreEditorState() {
-    // First pass: restore scroll positions and selection
     requestAnimationFrame(() => {
-      // Restore individual toggle states
       if (this.savedToggleStates) {
         this.savedToggleStates.forEach(state => {
           const textarea = document.querySelector(`textarea[data-toggle-id="${state.id}"]`);
           if (textarea) {
-            // Restore scroll position
             textarea.scrollTop = state.scrollTop;
 
-            // Restore selection
             if (state.isFocused) {
               textarea.focus();
               textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
@@ -198,14 +269,11 @@ export class UIManager {
         });
       }
 
-      // Restore editor content scroll
       const editorContent = document.querySelector('.editor-content');
       if (editorContent) {
         editorContent.scrollTop = this.lastKnownScrollPosition;
       }
 
-      // Second pass: double-check scroll positions after a brief delay
-      // This ensures proper restoration even after browser reflow
       setTimeout(() => {
         if (this.savedToggleStates) {
           this.savedToggleStates.forEach(state => {
@@ -300,7 +368,6 @@ export class UIManager {
     this.notesList.innerHTML = '';
     this.notesList.appendChild(fragment);
 
-    // Attach event listeners
     document.querySelectorAll('.note-card').forEach(card => {
       card.addEventListener('click', () => {
         const noteId = parseInt(card.dataset.noteId);
@@ -367,7 +434,7 @@ export class UIManager {
     this.togglesContainer.innerHTML = togglesHtml;
     this.attachToggleEventListeners();
 
-    if (shouldRestoreState) {
+  if (shouldRestoreState) {
       this.restoreEditorState();
     }
   }
@@ -389,7 +456,6 @@ export class UIManager {
     });
 
     document.querySelectorAll('textarea').forEach(textarea => {
-      // Auto-resize textarea as content changes
       const autoResize = () => {
         textarea.style.height = 'auto';
         textarea.style.height = textarea.scrollHeight + 'px';
@@ -400,10 +466,8 @@ export class UIManager {
         this.updateToggleContent(parseInt(e.target.dataset.toggleId), e.target.value);
       });
 
-      // Initial resize
       autoResize();
 
-      // Handle focus events to save last active state
       textarea.addEventListener('focus', () => {
         this.lastActiveToggleId = parseInt(textarea.dataset.toggleId);
       });
@@ -416,4 +480,18 @@ export class UIManager {
     div.textContent = unsafe;
     return div.innerHTML;
   }
-    }
+
+  cleanupOldEditorStates() {
+    const states = StorageManager.load(this.editorStateKey, {});
+    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    
+    const updatedStates = Object.entries(states).reduce((acc, [id, state]) => {
+        if (state.timestamp && state.timestamp > oneWeekAgo) {
+            acc[id] = state;
+        }
+        return acc;
+    }, {});
+    
+    StorageManager.save(this.editorStateKey, updatedStates);
+  }
+}
