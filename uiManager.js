@@ -338,108 +338,84 @@ export class UIManager {
     const editorContent = document.querySelector('.editor-content');
     const editorScrollTop = editorContent ? editorContent.scrollTop : 0;
     
-    // Store scroll positions and selection states of all textareas
-    const scrollPositions = new Map();
+    // Get the toggle that's being modified
+    const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
+    if (!toggle) return;
+
+    // Create a persistent storage for scroll positions if it doesn't exist
+    if (!this.toggleScrollPositions) {
+        this.toggleScrollPositions = new Map();
+    }
+    
+    // Store current scroll positions for all toggles
     this.currentNote.toggles.forEach(toggle => {
         const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
         if (textarea) {
-            scrollPositions.set(toggle.id, {
+            this.toggleScrollPositions.set(toggle.id, {
                 scrollTop: textarea.scrollTop,
                 scrollHeight: textarea.scrollHeight,
                 selectionStart: textarea.selectionStart,
                 selectionEnd: textarea.selectionEnd,
                 isFocused: document.activeElement === textarea,
-                content: textarea.value // Store the content to help with scroll restoration
+                content: textarea.value
             });
         }
     });
     
-    // Store the specific toggle's state that's being toggled
-    const targetToggle = this.currentNote.toggles.find(t => t.id === toggleId);
-    const targetTextarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
-    const targetScrollState = targetTextarea ? {
-        scrollTop: targetTextarea.scrollTop,
-        scrollHeight: targetTextarea.scrollHeight,
-        content: targetTextarea.value
-    } : null;
-    
+    // Store the previous note state for history
     const previousState = JSON.parse(JSON.stringify(this.currentNote));
-    const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
     
-    if (toggle) {
-        toggle.isOpen = !toggle.isOpen;
-        this.history.push(previousState);
-        this.noteManager.updateNote(this.currentNote);
+    // Toggle the section
+    toggle.isOpen = !toggle.isOpen;
+    this.history.push(previousState);
+    this.noteManager.updateNote(this.currentNote);
+    
+    // Render without immediate state restoration
+    this.renderEditor(false);
+    
+    // Use a more reliable approach to restore states
+    const restoreStates = () => {
+        // Restore main editor scroll
+        if (editorContent) {
+            editorContent.scrollTop = editorScrollTop;
+        }
         
-        // Render without restoring state since we'll handle it manually
-        this.renderEditor(false);
-        
-        // Restore scroll positions after toggle
-        requestAnimationFrame(() => {
-            // Restore main editor scroll position
-            if (editorContent) {
-                editorContent.scrollTop = editorScrollTop;
+        // Restore all toggle states
+        this.currentNote.toggles.forEach(t => {
+            if (!t.isOpen) return; // Skip closed toggles
+            
+            const savedState = this.toggleScrollPositions.get(t.id);
+            if (!savedState) return;
+            
+            const textarea = document.querySelector(`textarea[data-toggle-id="${t.id}"]`);
+            if (!textarea || textarea.value !== savedState.content) return;
+            
+            // Calculate and apply the correct scroll position
+            if (textarea.scrollHeight !== savedState.scrollHeight) {
+                const ratio = textarea.scrollHeight / savedState.scrollHeight;
+                textarea.scrollTop = savedState.scrollTop * ratio;
+            } else {
+                textarea.scrollTop = savedState.scrollTop;
             }
             
-            // Restore individual textarea states
-            scrollPositions.forEach((state, id) => {
-                const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
-                if (textarea) {
-                    // Only restore scroll position if content matches
-                    if (textarea.value === state.content) {
-                        textarea.scrollTop = state.scrollTop;
-                        if (state.isFocused) {
-                            textarea.focus();
-                            textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
-                        }
-                    }
-                }
-            });
-            
-            // Special handling for the toggled section
-            if (toggle.isOpen && targetScrollState) {
-                const newTextarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
-                if (newTextarea && newTextarea.value === targetScrollState.content) {
-                    // If the scrollHeight is different, adjust the scroll position proportionally
-                    if (newTextarea.scrollHeight !== targetScrollState.scrollHeight) {
-                        const ratio = newTextarea.scrollHeight / targetScrollState.scrollHeight;
-                        newTextarea.scrollTop = targetScrollState.scrollTop * ratio;
-                    } else {
-                        newTextarea.scrollTop = targetScrollState.scrollTop;
-                    }
-                }
+            // Restore focus and selection if this was the active element
+            if (savedState.isFocused) {
+                textarea.focus();
+                textarea.setSelectionRange(savedState.selectionStart, savedState.selectionEnd);
             }
-            
-            // Double-check scroll positions after a brief delay
-            setTimeout(() => {
-                // Recheck main editor scroll position
-                if (editorContent && editorContent.scrollTop !== editorScrollTop) {
-                    editorContent.scrollTop = editorScrollTop;
-                }
-                
-                // Recheck textarea scroll positions
-                scrollPositions.forEach((state, id) => {
-                    const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
-                    if (textarea && textarea.value === state.content && textarea.scrollTop !== state.scrollTop) {
-                        textarea.scrollTop = state.scrollTop;
-                    }
-                });
-                
-                // Recheck the toggled section specifically
-                if (toggle.isOpen && targetScrollState) {
-                    const newTextarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
-                    if (newTextarea && newTextarea.value === targetScrollState.content) {
-                        if (newTextarea.scrollHeight !== targetScrollState.scrollHeight) {
-                            const ratio = newTextarea.scrollHeight / targetScrollState.scrollHeight;
-                            newTextarea.scrollTop = targetScrollState.scrollTop * ratio;
-                        } else {
-                            newTextarea.scrollTop = targetScrollState.scrollTop;
-                        }
-                    }
-                }
-            }, 50);
         });
-    }
+    };
+    
+    // Initial restoration attempt
+    requestAnimationFrame(() => {
+        restoreStates();
+        
+        // Secondary restoration to handle any delayed rendering
+        setTimeout(restoreStates, 50);
+        
+        // Final restoration for edge cases
+        setTimeout(restoreStates, 150);
+    });
   }
                     
   filterNotes() {
