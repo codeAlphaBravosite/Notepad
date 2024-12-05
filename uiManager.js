@@ -337,16 +337,16 @@ export class UIManager {
     const editorContent = document.querySelector('.editor-content');
     const editorScrollTop = editorContent ? editorContent.scrollTop : 0;
 
-    const scrollPositions = new Map();
+    const scrollPositions = {};
     this.currentNote.toggles.forEach(toggle => {
         const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
         if (textarea) {
-            scrollPositions.set(toggle.id, {
+            scrollPositions[toggle.id] = {
                 scrollTop: textarea.scrollTop,
                 selectionStart: textarea.selectionStart,
                 selectionEnd: textarea.selectionEnd,
                 isFocused: document.activeElement === textarea
-            });
+            };
         }
     });
 
@@ -358,40 +358,29 @@ export class UIManager {
         this.history.push(previousState);
         this.noteManager.updateNote(this.currentNote);
 
-        this.renderEditor(false);
+        // Avoid rendering the full editor; only update the toggle section
+        this.renderPartialToggle(toggleId);
 
+        // Restore scroll positions and selection states
         requestAnimationFrame(() => {
             if (editorContent) {
                 editorContent.scrollTop = editorScrollTop;
             }
 
-            scrollPositions.forEach((state, id) => {
+            Object.keys(scrollPositions).forEach(id => {
                 const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
                 if (textarea) {
-                    textarea.scrollTop = state.scrollTop;
-                    if (state.isFocused) {
+                    textarea.scrollTop = scrollPositions[id].scrollTop;
+                    if (scrollPositions[id].isFocused) {
                         textarea.focus();
-                        textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
+                        textarea.setSelectionRange(scrollPositions[id].selectionStart, scrollPositions[id].selectionEnd);
                     }
                 }
             });
-
-            setTimeout(() => {
-                if (editorContent && editorContent.scrollTop !== editorScrollTop) {
-                    editorContent.scrollTop = editorScrollTop;
-                }
-
-                scrollPositions.forEach((state, id) => {
-                    const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
-                    if (textarea && textarea.scrollTop !== state.scrollTop) {
-                        textarea.scrollTop = state.scrollTop;
-                    }
-                });
-            }, 50);
         });
     }
   }
-                      
+                        
   filterNotes() {
     const searchTerm = this.searchInput.value.toLowerCase();
     this.renderNotesList(searchTerm);
@@ -487,6 +476,24 @@ export class UIManager {
     }
   }
 
+  renderPartialToggle(toggleId) {
+    const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
+    if (!toggle) return;
+
+    const toggleElement = document.querySelector(`.toggle-section[data-toggle-id="${toggle.id}"]`);
+    if (toggleElement) {
+        const toggleContent = toggleElement.querySelector('.toggle-content');
+        if (toggleContent) {
+            toggleContent.classList.toggle('open', toggle.isOpen);
+        }
+
+        const toggleIcon = toggleElement.querySelector('.toggle-icon');
+        if (toggleIcon) {
+            toggleIcon.classList.toggle('open', toggle.isOpen);
+        }
+    }
+  }
+  
   attachToggleEventListeners() {
     document.querySelectorAll('.toggle-header').forEach(header => {
       header.addEventListener('click', (e) => {
