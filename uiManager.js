@@ -138,7 +138,7 @@ export class UIManager {
                 const textarea = document.querySelector(`textarea[data-toggle-id="${state.id}"]`);
                 if (textarea) {
                     textarea.scrollTop = state.scrollTop;
-                    textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
+                   // textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
                 }
             });
         }
@@ -148,12 +148,12 @@ export class UIManager {
             editorContent.scrollTop = savedState.editorScrollTop;
         }
 
-        if (savedState.lastActiveToggleId) {
-            const textarea = document.querySelector(`textarea[data-toggle-id="${savedState.lastActiveToggleId}"]`);
-            if (textarea) {
-                textarea.focus();
-            }
-        }
+        //if (savedState.lastActiveToggleId) {
+            //const textarea = document.querySelector(`textarea[data-toggle-id="${savedState.lastActiveToggleId}"]`);
+           // if (textarea) {
+              //  textarea.focus();
+           // }
+     //   }
 
         setTimeout(() => {
             if (savedState.toggleStates) {
@@ -264,10 +264,10 @@ export class UIManager {
           if (textarea) {
             textarea.scrollTop = state.scrollTop;
 
-            if (state.isFocused) {
-              textarea.focus();
-              textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
-            }
+            //if (state.isFocused) {
+             // textarea.focus();
+             // textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
+         // }
           }
         });
       }
