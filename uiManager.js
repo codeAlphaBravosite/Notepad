@@ -14,6 +14,9 @@ export class UIManager {
     this.lastCaretPosition = null;
     this.savedToggleStates = null;
     this.editorStateKey = 'editor-states';
+    this.isRestoring = false;
+    this.toggleDebounce = null;
+    this.scrollRestoreTimeout = null;
     
     this.history = new HistoryManager(({ canUndo, canRedo }) => {
       this.undoButton.disabled = !canUndo;
@@ -331,77 +334,198 @@ export class UIManager {
     }
   }
 
-  toggleSection(toggleId) {
-    if (!this.currentNote) return;
-    
-    // Store the main editor content scroll position
-    const editorContent = document.querySelector('.editor-content');
-    const editorScrollTop = editorContent ? editorContent.scrollTop : 0;
-    
-    // Store scroll positions and selection states of all textareas before toggling
-    const scrollPositions = new Map();
-    this.currentNote.toggles.forEach(toggle => {
-        const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
-        if (textarea) {
-            scrollPositions.set(toggle.id, {
-                scrollTop: textarea.scrollTop,
-                scrollHeight: textarea.scrollHeight,
-                selectionStart: textarea.selectionStart,
-                selectionEnd: textarea.selectionEnd,
-                isFocused: document.activeElement === textarea
-            });
+    toggleSection(toggleId) {
+        if (!this.currentNote) return;
+        
+        // Debounce rapid toggles
+        if (this.toggleDebounce) {
+            clearTimeout(this.toggleDebounce);
+            this.toggleDebounce = null;
         }
-    });
-    
-    const previousState = JSON.parse(JSON.stringify(this.currentNote));
-    const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
-    
-    if (toggle) {
-        toggle.isOpen = !toggle.isOpen;
-        this.history.push(previousState);
-        this.noteManager.updateNote(this.currentNote);
         
-        // Render without restoring state since we'll handle it manually
-        this.renderEditor(false);
+        // Clear any pending scroll restoration
+        if (this.scrollRestoreTimeout) {
+            clearTimeout(this.scrollRestoreTimeout);
+            this.scrollRestoreTimeout = null;
+        }
         
-        // Restore scroll positions after toggle
-        requestAnimationFrame(() => {
-            // Restore main editor scroll position first
-            if (editorContent) {
-                editorContent.scrollTop = editorScrollTop;
+        this.toggleDebounce = setTimeout(() => {
+            this._handleToggleSection(toggleId);
+        }, 50);
+    }
+
+    _handleToggleSection(toggleId) {
+        if (this.isRestoring || !this.currentNote) return;
+        
+        this.isRestoring = true;
+        
+        try {
+            // Store the main editor content scroll position
+            const editorContent = document.querySelector('.editor-content');
+            const editorScrollTop = editorContent ? editorContent.scrollTop : 0;
+            
+            // Create WeakMap for better memory management
+            const scrollPositions = new Map();
+            
+            // Store scroll positions with content verification
+            this.currentNote.toggles.forEach(toggle => {
+                const textarea = document.querySelector(`textarea[data-toggle-id="${toggle.id}"]`);
+                if (textarea) {
+                    const scrollState = {
+                        scrollTop: textarea.scrollTop,
+                        scrollHeight: textarea.scrollHeight,
+                        selectionStart: textarea.selectionStart,
+                        selectionEnd: textarea.selectionEnd,
+                        isFocused: document.activeElement === textarea,
+                        content: textarea.value,
+                        contentHash: this._hashContent(textarea.value) // Add content hash for verification
+                    };
+                    scrollPositions.set(toggle.id, scrollState);
+                }
+            });
+            
+            // Store target toggle state
+            const targetScrollState = this._captureToggleState(toggleId);
+            
+            // Update toggle state
+            const previousState = JSON.parse(JSON.stringify(this.currentNote));
+            const toggle = this.currentNote.toggles.find(t => t.id === toggleId);
+            
+            if (!toggle) {
+                throw new Error('Toggle not found');
             }
             
-            // Then restore individual textarea states
-            scrollPositions.forEach((state, id) => {
-                const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
-                if (textarea) {
-                    textarea.scrollTop = state.scrollTop;
-                    if (state.isFocused) {
-                        textarea.focus();
-                        textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
-                    }
+            toggle.isOpen = !toggle.isOpen;
+            this.history.push(previousState);
+            this.noteManager.updateNote(this.currentNote);
+            
+            // Render and restore
+            this.renderEditor(false);
+            
+            requestAnimationFrame(() => {
+                try {
+                    this._restoreScrollPositions(editorContent, editorScrollTop, scrollPositions, toggle, targetScrollState, toggleId);
+                    
+                    // Schedule final check
+                    this.scrollRestoreTimeout = setTimeout(() => {
+                        try {
+                            this._finalScrollCheck(editorContent, editorScrollTop, scrollPositions, toggle, targetScrollState, toggleId);
+                        } catch (error) {
+                            console.error('Final scroll check failed:', error);
+                            this._resetScrollPositions();
+                        } finally {
+                            scrollPositions.clear();
+                            this.isRestoring = false;
+                        }
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('Initial scroll restoration failed:', error);
+                    this._resetScrollPositions();
+                    this.isRestoring = false;
                 }
             });
             
-            // Double-check scroll positions after a brief delay
-            setTimeout(() => {
-                // Recheck main editor scroll position
-                if (editorContent && editorContent.scrollTop !== editorScrollTop) {
-                    editorContent.scrollTop = editorScrollTop;
-                }
-                
-                // Recheck textarea scroll positions
-                scrollPositions.forEach((state, id) => {
-                    const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
-                    if (textarea && textarea.scrollTop !== state.scrollTop) {
-                        textarea.scrollTop = state.scrollTop;
-                    }
-                });
-            }, 50);
+        } catch (error) {
+            console.error('Toggle section failed:', error);
+            this.isRestoring = false;
+        }
+    }
+
+    _hashContent(content) {
+        // Simple hash function for content verification
+        let hash = 0;
+        for (let i = 0; i < content.length; i++) {
+            hash = ((hash << 5) - hash) + content.charCodeAt(i);
+            hash = hash & hash;
+        }
+        return hash;
+    }
+
+    _captureToggleState(toggleId) {
+        const textarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
+        if (!textarea) return null;
+        
+        return {
+            scrollTop: textarea.scrollTop,
+            scrollHeight: textarea.scrollHeight,
+            content: textarea.value,
+            contentHash: this._hashContent(textarea.value)
+        };
+    }
+
+    _restoreScrollPositions(editorContent, editorScrollTop, scrollPositions, toggle, targetScrollState, toggleId) {
+        // Restore main editor scroll
+        if (editorContent) {
+            editorContent.scrollTop = editorScrollTop;
+        }
+        
+        // Restore all textarea positions
+        scrollPositions.forEach((state, id) => {
+            const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
+            if (textarea && this._hashContent(textarea.value) === state.contentHash) {
+                this._restoreTextareaState(textarea, state);
+            }
+        });
+        
+        // Handle toggled section specifically
+        if (toggle.isOpen && targetScrollState) {
+            const newTextarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
+            if (newTextarea && this._hashContent(newTextarea.value) === targetScrollState.contentHash) {
+                this._restoreTextareaState(newTextarea, targetScrollState);
+            }
+        }
+    }
+
+    _restoreTextareaState(textarea, state) {
+        if (state.scrollHeight !== textarea.scrollHeight) {
+            // Adjust scroll position proportionally if height changed
+            const ratio = textarea.scrollHeight / state.scrollHeight;
+            textarea.scrollTop = Math.round(state.scrollTop * ratio);
+        } else {
+            textarea.scrollTop = state.scrollTop;
+        }
+        
+        if (state.isFocused) {
+            textarea.focus();
+            textarea.setSelectionRange(state.selectionStart, state.selectionEnd);
+        }
+    }
+
+    _finalScrollCheck(editorContent, editorScrollTop, scrollPositions, toggle, targetScrollState, toggleId) {
+        // Recheck main editor
+        if (editorContent && editorContent.scrollTop !== editorScrollTop) {
+            editorContent.scrollTop = editorScrollTop;
+        }
+        
+        // Recheck all textareas
+        scrollPositions.forEach((state, id) => {
+            const textarea = document.querySelector(`textarea[data-toggle-id="${id}"]`);
+            if (textarea && this._hashContent(textarea.value) === state.contentHash) {
+                this._restoreTextareaState(textarea, state);
+            }
+        });
+        
+        // Recheck toggled section
+        if (toggle.isOpen && targetScrollState) {
+            const newTextarea = document.querySelector(`textarea[data-toggle-id="${toggleId}"]`);
+            if (newTextarea && this._hashContent(newTextarea.value) === targetScrollState.contentHash) {
+                this._restoreTextareaState(newTextarea, targetScrollState);
+            }
+        }
+    }
+
+    _resetScrollPositions() {
+        // Fallback to reset all scroll positions
+        const editorContent = document.querySelector('.editor-content');
+        if (editorContent) editorContent.scrollTop = 0;
+        
+        document.querySelectorAll('textarea').forEach(textarea => {
+            textarea.scrollTop = 0;
         });
     }
-  }
-                    
+}
+
   filterNotes() {
     const searchTerm = this.searchInput.value.toLowerCase();
     this.renderNotesList(searchTerm);
