@@ -653,8 +653,7 @@ export class UIManager {
           <div class="toggle-content ${toggle.isOpen ? 'open' : ''}">
             <textarea
               data-toggle-id="${toggle.id}"
-              placeholder="Start writing..."
-              style="min-height: 100px; resize: vertical;"
+              placeholder="Start writing..." spellcheck="false" style="min-height: 100px; resize: vertical;"
             >${escapedContent}</textarea>
           </div>
         </div>
